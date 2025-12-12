@@ -1,5 +1,5 @@
 import { H3Event, setCookie, deleteCookie, getCookie, createError } from 'h3';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma/client';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
