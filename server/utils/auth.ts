@@ -17,10 +17,10 @@ export class AuthService {
    */
   static async login(event: H3Event): Promise<AuthResponse> {
     const { email, password } = await readBody(event);
-    
-    const user = await prisma.user.findUnique({ 
-      where: { email }, 
-      include: { role: true } 
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { role: true }
     });
 
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -34,7 +34,7 @@ export class AuthService {
     // Store Refresh Token in DB (Session Control)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
-    
+
     await prisma.session.create({
       data: { userId: user.id, refreshToken, expiresAt },
     });
@@ -56,10 +56,10 @@ export class AuthService {
       // Remove session from DB
       await prisma.session.deleteMany({ where: { refreshToken } }).catch(() => null);
     }
-    
+
     deleteCookie(event, 'access_token');
     deleteCookie(event, 'refresh_token');
-    
+
     return { success: true, message: 'Logged out successfully' };
   }
 
@@ -71,10 +71,10 @@ export class AuthService {
     if (!token) throw createError({ statusCode: 401, message: 'No refresh token' });
 
     const session = await prisma.session.findUnique({ where: { refreshToken: token }, include: { user: { include: { role: true } } } });
-    
+
     if (!session || session.expiresAt < new Date()) {
-        await this.logout(event); 
-        throw createError({ statusCode: 403, message: 'Session expired' });
+      await this.logout(event);
+      throw createError({ statusCode: 403, message: 'Session expired' });
     }
 
     // Rotate Tokens
@@ -83,8 +83,8 @@ export class AuthService {
 
     // Update DB Session
     await prisma.session.update({
-        where: { id: session.id },
-        data: { refreshToken: newRefresh, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }
+      where: { id: session.id },
+      data: { refreshToken: newRefresh, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }
     });
 
     this.setAuthCookies(event, newAccess, newRefresh);
@@ -97,7 +97,7 @@ export class AuthService {
   static async createUser(event: H3Event): Promise<AuthResponse> {
     // Ideally, check for Admin role here using context or middleware
     const { name, email, password, roleId } = await readBody(event);
-    
+
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) throw createError({ statusCode: 409, message: 'User already exists' });
 
@@ -140,24 +140,24 @@ export class AuthService {
    */
   static async createSuperUser(event: H3Event): Promise<AuthResponse> {
     const { email, password, name } = await readBody(event);
-    
+
     // 1. Ensure Admin Role Exists
     let adminRole = await prisma.role.findUnique({ where: { name: 'SuperAdmin' } });
     if (!adminRole) {
-        adminRole = await prisma.role.create({ data: { name: 'SuperAdmin' } });
+      adminRole = await prisma.role.create({ data: { name: 'SuperAdmin' } });
     }
 
     // 2. Create User
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.upsert({
-        where: { email },
-        update: {}, // Don't update if exists
-        create: {
-            name: name || 'Super Admin',
-            email,
-            passwordHash,
-            roleId: adminRole.id
-        }
+      where: { email },
+      update: {}, // Don't update if exists
+      create: {
+        name: name || 'Super Admin',
+        email,
+        passwordHash,
+        roleId: adminRole.id
+      }
     });
 
     return { success: true, message: 'Super User ensured', data: user };
@@ -173,8 +173,8 @@ export class AuthService {
    * Utility to extract User Payload from current Request Cookie (for internal API usage)
    */
   static getUserFromToken(event: H3Event): TokenPayload | null {
-      const token = getCookie(event, 'access_token');
-      if (!token) return null;
-      try { return jwt.verify(token, ACCESS_SECRET) as TokenPayload; } catch { return null; }
+    const token = getCookie(event, 'access_token');
+    if (!token) return null;
+    try { return jwt.verify(token, ACCESS_SECRET) as TokenPayload; } catch { return null; }
   }
 }
