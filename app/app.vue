@@ -72,21 +72,22 @@ const form = useForm({
       const response = await $fetch<LoginResponse>('/api/auth/login', {
         method: 'POST',
         body: value,
-        credentials: 'include' // Important for cookies
+        credentials: 'include'
       })
 
       if (response.success && response.data) {
+        const { role } = response.data.user
+
         toast.success('Login successful', {
           description: `Welcome back, ${response.data.user.name}!`,
           position: 'bottom-right',
-          class: 'flex flex-col gap-2',
-          style: {
-            '--border-radius': 'calc(var(--radius) + 4px)',
-          },
         })
-        
-        // Redirect to dashboard or home page
-        navigateTo('/dashboard')
+
+        if (role === 'SuperAdmin' || role === 'Admin') {
+          await navigateTo('/dashboard')
+        } else {
+          await navigateTo('/')
+        }
       }
     } catch (error: any) {
       let errorMessage = 'Login failed'
