@@ -151,7 +151,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.upsert({
       where: { email },
-      update: {}, // Don't update if exists
+      update: {}, 
       create: {
         name: name || 'Super Admin',
         email,
