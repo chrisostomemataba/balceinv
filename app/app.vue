@@ -2,7 +2,6 @@
 import { useForm } from '@tanstack/vue-form'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
-import { h } from 'vue'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -53,9 +52,13 @@ const formSchema = z.object({
     .min(6, 'Password must be at least 6 characters'),
 })
 
+// Get auth composable
+const { login } = useAuth()
+
 // Reactive state for loading
 const isLoading = ref(false)
 
+// Setup form
 const form = useForm({
   defaultValues: {
     email: '',
@@ -68,12 +71,8 @@ const form = useForm({
     isLoading.value = true
     
     try {
-      // Type the response properly
-      const response = await $fetch<LoginResponse>('/api/auth/login', {
-        method: 'POST',
-        body: value,
-        credentials: 'include'
-      })
+      // Call login from composable
+      const response = await login(value) as LoginResponse
 
       if (response.success && response.data) {
         const { role } = response.data.user
@@ -83,6 +82,7 @@ const form = useForm({
           position: 'bottom-right',
         })
 
+        // Navigate based on role
         if (role === 'SuperAdmin' || role === 'Admin') {
           await navigateTo('/dashboard')
         } else {
@@ -101,10 +101,6 @@ const form = useForm({
       toast.error('Login failed', {
         description: errorMessage,
         position: 'bottom-right',
-        class: 'flex flex-col gap-2',
-        style: {
-          '--border-radius': 'calc(var(--radius) + 4px)',
-        },
       })
     } finally {
       isLoading.value = false
@@ -119,7 +115,7 @@ function isInvalid(field: any): boolean {
 </script>
 
 <template>
-  <Card class="w-full sm:max-w-md mx-auto mt-8">
+  <Card class="w-full sm:max-w-md mx-auto mt-16">
     <CardHeader>
       <CardTitle>Login to Your Account</CardTitle>
       <CardDescription>
@@ -127,7 +123,7 @@ function isInvalid(field: any): boolean {
       </CardDescription>
     </CardHeader>
     <CardContent>
-      <form id="login-form" @submit.prevent="form.handleSubmit">
+      <form id="login-form" @submit.prevent="form.handleSubmit()">
         <FieldGroup>
           <form.Field name="email">
             <template #default="{ field }: { field: any }">
@@ -200,8 +196,8 @@ function isInvalid(field: any): boolean {
           Clear
         </Button>
         <Button 
-          type="submit" 
-          form="login-form"
+          type="button" 
+          @click="form.handleSubmit()"
           :disabled="isLoading"
         >
           <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
