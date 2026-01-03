@@ -2,8 +2,7 @@ import { H3Event, setCookie, deleteCookie, getCookie, createError } from 'h3';
 import { eq, and } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { SessionWithUser } from '../db/schema';
-// Import our auto-imported utils from the previous steps
+import { SessionWithUser } from '../db/schema'
 import { db, tables } from '../utils/db';
 
 const ACCESS_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access-secret-key';
@@ -13,13 +12,8 @@ type TokenPayload = { userId: number; role: string; email: string };
 interface AuthResponse { success: boolean; message: string; data?: any }
 
 export class AuthService {
-  /**
-   * 1. LOGIN: Drizzle uses findFirst with 'with' for relations.
-   */
   static async login(event: H3Event): Promise<AuthResponse> {
     const { email, password } = await readBody(event);
-
-    // Drizzle Relational Query
     const user = await db.query.users.findFirst({
       where: eq(tables.users.email, email),
       with: { role: true }
@@ -35,7 +29,6 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Drizzle Insert
     await db.insert(tables.sessions).values({
       userId: user.id,
       refreshToken,
@@ -53,9 +46,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * 2. LOGOUT: Drizzle uses .delete().where()
-   */
   static async logout(event: H3Event): Promise<AuthResponse> {
     const refreshToken = getCookie(event, 'refresh_token');
     if (refreshToken) {
@@ -68,9 +58,6 @@ export class AuthService {
     return { success: true, message: 'Logged out successfully' };
   }
 
-  /**
-   * 3. REFRESH SESSION
-   */
   static async refresh(event: H3Event): Promise<AuthResponse> {
     const token = getCookie(event, 'refresh_token');
     if (!token) throw createError({ statusCode: 401, message: 'No refresh token' });
@@ -88,7 +75,6 @@ export class AuthService {
     const newAccess = jwt.sign({ userId: session.user.id, role: session.user.role.name, email: session.user.email }, ACCESS_SECRET, { expiresIn: '15m' });
     const newRefresh = jwt.sign({ userId: session.user.id }, REFRESH_SECRET, { expiresIn: '7d' });
 
-    // Drizzle Update
     await db.update(tables.sessions)
       .set({ 
         refreshToken: newRefresh, 
@@ -100,9 +86,6 @@ export class AuthService {
     return { success: true, message: 'Session refreshed' };
   }
 
-  /**
-   * 4. CREATE USER
-   */
   static async createUser(event: H3Event): Promise<AuthResponse> {
     const { name, email, password, roleId } = await readBody(event);
 
@@ -113,7 +96,6 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, 10);
     
-    // Use .returning() to get the ID back immediately in SQLite
     const [user] = await db.insert(tables.users).values({
       name, email, passwordHash, roleId: Number(roleId)
     }).returning();
@@ -121,9 +103,6 @@ export class AuthService {
     return { success: true, message: 'User created', data: { id: user.id, email: user.email } };
   }
 
-  /**
-   * 5. MANAGE ROLES & DELETE
-   */
   static async createRole(event: H3Event): Promise<AuthResponse> {
     const { name } = await readBody(event);
     const [role] = await db.insert(tables.roles).values({ name }).returning();
@@ -142,18 +121,12 @@ export class AuthService {
     const { userId } = await readBody(event);
     const uId = Number(userId);
     
-    // SQLite doesn't always have complex cascade deletes enabled by default driver
-    // Manual cleanup for safety:
     await db.delete(tables.sessions).where(eq(tables.sessions.userId, uId));
     await db.delete(tables.users).where(eq(tables.users.id, uId));
     
     return { success: true, message: 'User deleted' };
   }
 
-  /**
-   * 6. SUPER USER SETUP (Upsert)
-   * SQLite Drizzle uses .onConflictDoUpdate()
-   */
   static async createSuperUser(event: H3Event): Promise<AuthResponse> {
     const { email, password, name } = await readBody(event);
 
@@ -165,7 +138,6 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, 10);
     
-    // Upsert pattern
     const [user] = await db.insert(tables.users)
       .values({
         name: name || 'Super Admin',
@@ -175,7 +147,7 @@ export class AuthService {
       })
       .onConflictDoUpdate({
         target: tables.users.email,
-        set: { name: name || 'Super Admin' } // Just updating the name if exists
+        set: { name: name || 'Super Admin' }
       })
       .returning();
 

@@ -1,67 +1,99 @@
-import { PrismaClient } from '../../generated/prisma/client'
-
-const prisma = new PrismaClient()
+import { eq, gte, sql, sum, count, inArray, desc } from 'drizzle-orm';
+import { db, tables } from '../utils/db';
 
 export class DashboardService {
+  /**
+   * 1. GET SUMMARY
+   * Fetches total counts and total revenue across the platform.
+   */
   static async getSummary() {
     const [
-      userCount,
-      productCount,
-      saleCount,
-      totalRevenue,
+      [userRes],
+      [productRes],
+      [saleRes],
+      [revenueRes]
     ] = await Promise.all([
-      prisma.user.count(),
-      prisma.product.count(),
-      prisma.sale.count(),
-      prisma.sale.aggregate({
-        _sum: { totalAmount: true },
-      }).then(r => r._sum.totalAmount || 0),
-    ])
+      db.select({ value: count() }).from(tables.users),
+      db.select({ value: count() }).from(tables.products),
+      db.select({ value: count() }).from(tables.sales),
+      db.select({ value: sum(tables.sales.totalAmount) }).from(tables.sales),
+    ]);
 
     return {
-      userCount,
-      productCount,
-      saleCount,
-      totalRevenue,
-    }
+      userCount: Number(userRes?.value || 0),
+      productCount: Number(productRes?.value || 0),
+      saleCount: Number(saleRes?.value || 0),
+      totalRevenue: Number(revenueRes?.value || 0),
+    };
   }
 
+  /**
+   * 2. GET DAILY SALES
+   * Groups sales by date. Note: SQL date formatting depends on your DB (SQLite/Postgres).
+   * This example uses SQLite syntax for date formatting.
+   */
   static async getDailySales(lastDays = 7) {
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - lastDays)
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - lastDays);
 
-    const raw = await prisma.sale.groupBy({
-      by: ['createdAt'],
-      where: { createdAt: { gte: startDate } },
-      _sum: { totalAmount: true },
-      orderBy: { createdAt: 'asc' },
-    })
+    // SQL fragment to extract date (YYYY-MM-DD) from the createdAt timestamp
+    const dateQuery = sql<string>`DATE(${tables.sales.createdAt})`;
 
-    // Map to simple { date, total } objects
+    const raw = await db
+      .select({
+        date: dateQuery,
+        total: sum(tables.sales.totalAmount),
+      })
+      .from(tables.sales)
+      .where(gte(tables.sales.createdAt, startDate))
+      .groupBy(dateQuery)
+      .orderBy(dateQuery);
+
     return raw.map(r => ({
-      date: r.createdAt.toISOString().slice(0, 10), // YYYY-MM-DD
-      total: Number(r._sum.totalAmount),
-    }))
+      date: r.date,
+      total: Number(r.total || 0),
+    }));
   }
 
+  /**
+   * 3. GET TOP PRODUCTS
+   * Aggregates quantities from sale items and joins with product info.
+   */
   static async getTopProducts(limit = 5) {
-    const top = await prisma.saleItem.groupBy({
-      by: ['productId'],
-      _sum: { quantity: true },
-      orderBy: { _sum: { quantity: 'desc' } },
-      take: limit,
-    })
+    // Get the aggregate data first
+    const topSales = await db
+      .select({
+        productId: tables.saleItems.productId,
+        totalSold: sum(tables.saleItems.quantity),
+      })
+      .from(tables.saleItems)
+      .groupBy(tables.saleItems.productId)
+      .orderBy(desc(sum(tables.saleItems.quantity)))
+      .limit(limit);
 
-    const productIds = top.map(t => t.productId)
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, name: true, sku: true },
-    })
+    if (topSales.length === 0) return [];
 
-    const map = new Map(products.map(p => [p.id, p]))
-    return top.map(t => ({
-      ...map.get(t.productId)!,
-      totalSold: t._sum.quantity,
-    }))
+    const productIds = topSales.map(t => t.productId);
+
+    // Fetch product details
+    const products = await db
+      .select({
+        id: tables.products.id,
+        name: tables.products.name,
+        sku: tables.products.sku,
+      })
+      .from(tables.products)
+      .where(inArray(tables.products.id, productIds));
+
+    // Combine the data
+    const map = new Map(products.map(p => [p.id, p]));
+    
+    return topSales.map(t => {
+      const p = map.get(t.productId);
+      return {
+        ...p,
+        totalSold: Number(t.totalSold || 0),
+      };
+    });
   }
 }
