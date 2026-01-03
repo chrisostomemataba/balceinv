@@ -2,7 +2,6 @@
 import { useForm } from '@tanstack/vue-form'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
-import { h } from 'vue'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -23,7 +22,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Loader2 } from 'lucide-vue-next'
 
-// Type definitions
+
 interface LoginCredentials {
   email: string
   password: string
@@ -41,7 +40,7 @@ interface LoginResponse {
   }
 }
 
-// Define form schema with Zod
+
 const formSchema = z.object({
   email: z
     .string()
@@ -68,7 +67,6 @@ const form = useForm({
     isLoading.value = true
     
     try {
-      // Type the response properly
       const response = await $fetch<LoginResponse>('/api/auth/login', {
         method: 'POST',
         body: value,
@@ -119,7 +117,8 @@ function isInvalid(field: any): boolean {
 </script>
 
 <template>
-  <Card class="w-full sm:max-w-md mx-auto mt-8">
+  <div class="min-h-screen w-full flex items-center justify-center p-4">
+    <Card class="w-full sm:max-w-md mx-auto mt-8">
     <CardHeader>
       <CardTitle>Login to Your Account</CardTitle>
       <CardDescription>
@@ -210,10 +209,17 @@ function isInvalid(field: any): boolean {
       </div>
       
       <div class="text-center text-sm text-muted-foreground">
-        <p class="text-xs">
-          By logging in, you agree to our Terms of Service and Privacy Policy
-        </p>
-      </div>
+          <p class="mb-2">
+            First time? 
+            <NuxtLink to="/admin-page" class="text-primary font-medium hover:underline">
+              Create Super User
+            </NuxtLink>
+          </p>
+          <p class="text-xs">
+            By logging in, you agree to our Terms of Service and Privacy Policy
+          </p>
+        </div>
     </CardFooter>
   </Card>
+</div>
 </template>
