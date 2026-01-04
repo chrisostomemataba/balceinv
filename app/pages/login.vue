@@ -126,7 +126,7 @@ function isInvalid(field: any): boolean {
       </CardDescription>
     </CardHeader>
     <CardContent>
-      <form id="login-form" @submit.prevent="form.handleSubmit">
+      <form id="login-form" @submit.prevent="form.handleSubmit()">
         <FieldGroup>
           <form.Field name="email">
             <template #default="{ field }: { field: any }">

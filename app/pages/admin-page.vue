@@ -13,7 +13,7 @@ const formSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 })
-
+const { setupAdmin } = useAuth()
 const isLoading = ref(false)
 
 const form = useForm({
@@ -23,25 +23,22 @@ const form = useForm({
     password: '',
   },
   validators: {
-    onSubmit: formSchema,
+    // Changing to onChange or onBlur can help see errors before clicking submit
+    onChange: formSchema,
   },
   onSubmit: async ({ value }) => {
     isLoading.value = true
     try {
-      const response = await $fetch<any>('/api/auth/setup-admin', {
-        method: 'POST',
-        body: value,
-      })
+      // Use the composable instead of raw $fetch
+      const response = await setupAdmin(value)
 
       if (response.success) {
-        toast.success('Super User Created', {
-          description: 'You can now log in with these credentials.',
-        })
+        toast.success('Super User Created')
         await navigateTo('/')
       }
     } catch (error: any) {
       toast.error('Setup failed', {
-        description: error.data?.message || 'Check server logs',
+        description: error.data?.message || 'Error connecting to server',
       })
     } finally {
       isLoading.value = false
@@ -66,14 +63,21 @@ function isInvalid(field: any): boolean {
       </CardHeader>
       
       <CardContent>
-        <form id="setup-form" @submit.prevent="form.handleSubmit" class="space-y-4">
+        <form 
+          @submit.prevent="(e) => {
+            e.stopPropagation();
+            form.handleSubmit();
+          }" 
+          class="space-y-4"
+        >
           <FieldGroup>
             <form.Field name="name">
               <template #default="{ field }: { field: any }">
                 <Field :data-invalid="isInvalid(field)">
-                  <FieldLabel>Full Name</FieldLabel>
+                  <FieldLabel :for="field.name">Full Name</FieldLabel>
                   <Input 
-                    v-model="field.state.value" 
+                    :id="field.name"
+                    :model-value="field.state.value" 
                     placeholder="Admin Name" 
                     :disabled="isLoading" 
                     @blur="field.handleBlur"
@@ -87,9 +91,10 @@ function isInvalid(field: any): boolean {
             <form.Field name="email">
               <template #default="{ field }: { field: any }">
                 <Field :data-invalid="isInvalid(field)">
-                  <FieldLabel>Email Address</FieldLabel>
+                  <FieldLabel :for="field.name">Email Address</FieldLabel>
                   <Input 
-                    v-model="field.state.value" 
+                    :id="field.name"
+                    :model-value="field.state.value" 
                     type="email" 
                     placeholder="admin@system.com" 
                     :disabled="isLoading" 
@@ -104,9 +109,10 @@ function isInvalid(field: any): boolean {
             <form.Field name="password">
               <template #default="{ field }: { field: any }">
                 <Field :data-invalid="isInvalid(field)">
-                  <FieldLabel>Root Password</FieldLabel>
+                  <FieldLabel :for="field.name">Root Password</FieldLabel>
                   <Input 
-                    v-model="field.state.value" 
+                    :id="field.name"
+                    :model-value="field.state.value" 
                     type="password" 
                     placeholder="••••••••" 
                     :disabled="isLoading" 
@@ -118,14 +124,15 @@ function isInvalid(field: any): boolean {
               </template>
             </form.Field>
           </FieldGroup>
+
+          <Button type="submit" class="w-full mt-4" :disabled="isLoading">
+            <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
+            {{ isLoading ? 'Creating Account...' : 'Create Super User' }}
+          </Button>
         </form>
       </CardContent>
 
       <CardFooter class="flex flex-col gap-3">
-        <Button type="submit" form="setup-form" class="w-full" :disabled="isLoading">
-          <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
-          {{ isLoading ? 'Creating Account...' : 'Create Super User' }}
-        </Button>
         <NuxtLink to="/login" class="text-xs text-center text-muted-foreground hover:underline">
           Back to Login
         </NuxtLink>
