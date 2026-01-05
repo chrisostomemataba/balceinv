@@ -59,7 +59,7 @@ export const useAuth = () => {
     try {
       console.log('Making setup request...')
       
-      const response = await $fetch<SetupResponse>('/api/auth/setup', {
+      const response = await $fetch<SetupResponse>('/api/auth/create-super-user', {
         method: 'POST',
         body: data,
         credentials: 'include'
