@@ -8,6 +8,10 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input'
 import { ShieldCheck } from 'lucide-vue-next'
 
+definePageMeta({
+  layout: 'auth'
+})
+
 const formSchema = toTypedSchema(z.object({
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email address'),

@@ -1,50 +1,33 @@
 <template>
-  <Sidebar>
+  <Sidebar variant="sidebar" collapsible="icon">
     <SidebarHeader>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="lg">
-            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-              <Store class="size-4" />
-            </div>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-semibold">Business Name</span>
-              <span class="truncate text-xs">POS & Inventory</span>
-            </div>
+          <SidebarMenuButton size="lg" as-child>
+            <a href="/">
+              <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <Store class="size-4" />
+              </div>
+              <div class="grid flex-1 text-left text-sm leading-tight">
+                <span class="truncate font-semibold">Business Name</span>
+                <span class="truncate text-xs">POS & Inventory</span>
+              </div>
+            </a>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarHeader>
     
     <SidebarContent>
-      <!-- Main Operations -->
       <SidebarGroup>
         <SidebarGroupLabel>Operations</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
+            <SidebarMenuItem v-for="item in operationItems" :key="item.title">
               <SidebarMenuButton as-child>
-                <NuxtLink to="/pos">
-                  <CreditCard class="mr-2 h-4 w-4" />
-                  <span>Point of Sale</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/sales">
-                  <ShoppingCart class="mr-2 h-4 w-4" />
-                  <span>Sales History</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/products">
-                  <Package class="mr-2 h-4 w-4" />
-                  <span>Products</span>
+                <NuxtLink :to="item.url">
+                  <component :is="item.icon" />
+                  <span>{{ item.title }}</span>
                 </NuxtLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -52,43 +35,15 @@
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <!-- Inventory Management -->
       <SidebarGroup>
         <SidebarGroupLabel>Inventory</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
+            <SidebarMenuItem v-for="item in inventoryItems" :key="item.title">
               <SidebarMenuButton as-child>
-                <NuxtLink to="/inventory">
-                  <Boxes class="mr-2 h-4 w-4" />
-                  <span>Stock Management</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/inventory/categories">
-                  <Tag class="mr-2 h-4 w-4" />
-                  <span>Categories</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/inventory/suppliers">
-                  <Truck class="mr-2 h-4 w-4" />
-                  <span>Suppliers</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/inventory/low-stock">
-                  <AlertTriangle class="mr-2 h-4 w-4" />
-                  <span>Low Stock Alerts</span>
+                <NuxtLink :to="item.url">
+                  <component :is="item.icon" />
+                  <span>{{ item.title }}</span>
                 </NuxtLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -96,34 +51,15 @@
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <!-- Analytics & Reports -->
       <SidebarGroup>
         <SidebarGroupLabel>Analytics</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
+            <SidebarMenuItem v-for="item in analyticsItems" :key="item.title">
               <SidebarMenuButton as-child>
-                <NuxtLink to="/reports">
-                  <BarChart3 class="mr-2 h-4 w-4" />
-                  <span>Reports</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/reports/sales">
-                  <TrendingUp class="mr-2 h-4 w-4" />
-                  <span>Sales Reports</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/reports/inventory">
-                  <PieChart class="mr-2 h-4 w-4" />
-                  <span>Inventory Reports</span>
+                <NuxtLink :to="item.url">
+                  <component :is="item.icon" />
+                  <span>{{ item.title }}</span>
                 </NuxtLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -131,34 +67,15 @@
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <!-- Admin Settings -->
       <SidebarGroup>
         <SidebarGroupLabel>Administration</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
+            <SidebarMenuItem v-for="item in adminItems" :key="item.title">
               <SidebarMenuButton as-child>
-                <NuxtLink to="/admin/users">
-                  <Users class="mr-2 h-4 w-4" />
-                  <span>User Management</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/admin/roles">
-                  <Shield class="mr-2 h-4 w-4" />
-                  <span>Roles & Permissions</span>
-                </NuxtLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            
-            <SidebarMenuItem>
-              <SidebarMenuButton as-child>
-                <NuxtLink to="/admin/settings">
-                  <Settings class="mr-2 h-4 w-4" />
-                  <span>System Settings</span>
+                <NuxtLink :to="item.url">
+                  <component :is="item.icon" />
+                  <span>{{ item.title }}</span>
                 </NuxtLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -172,24 +89,41 @@
         <SidebarMenuItem>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <SidebarMenuButton>
-                <UserCircle class="mr-2 h-4 w-4" />
-                <span>Current User</span>
-                <ChevronUp class="ml-auto h-4 w-4" />
+              <SidebarMenuButton size="lg">
+                <Avatar class="h-8 w-8 rounded-lg">
+                  <AvatarFallback class="rounded-lg">CU</AvatarFallback>
+                </Avatar>
+                <div class="grid flex-1 text-left text-sm leading-tight">
+                  <span class="truncate font-semibold">Current User</span>
+                  <span class="truncate text-xs">user@example.com</span>
+                </div>
+                <ChevronUp class="ml-auto size-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" class="w-[--radix-popper-anchor-width]">
+            <DropdownMenuContent class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg" side="bottom" align="end" :side-offset="4">
+              <DropdownMenuLabel class="p-0 font-normal">
+                <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                  <Avatar class="h-8 w-8 rounded-lg">
+                    <AvatarFallback class="rounded-lg">CU</AvatarFallback>
+                  </Avatar>
+                  <div class="grid flex-1 text-left text-sm leading-tight">
+                    <span class="truncate font-semibold">Current User</span>
+                    <span class="truncate text-xs">user@example.com</span>
+                  </div>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem>
-                <User class="mr-2 h-4 w-4" />
+                <User />
                 <span>Profile</span>
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <Settings class="mr-2 h-4 w-4" />
+                <Settings />
                 <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
-                <LogOut class="mr-2 h-4 w-4" />
+                <LogOut />
                 <span>Sign out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -221,11 +155,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import '@/assets/css/main.css'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
-// Icons
 import {
   Store,
   CreditCard,
@@ -241,9 +177,33 @@ import {
   Users,
   Shield,
   Settings,
-  UserCircle,
   User,
   LogOut,
   ChevronUp,
 } from 'lucide-vue-next'
+
+const operationItems = [
+  { title: 'Point of Sale', url: '/pos', icon: CreditCard },
+  { title: 'Sales History', url: '/sales', icon: ShoppingCart },
+  { title: 'Products', url: '/products', icon: Package },
+]
+
+const inventoryItems = [
+  { title: 'Stock Management', url: '/inventory', icon: Boxes },
+  { title: 'Categories', url: '/inventory/categories', icon: Tag },
+  { title: 'Suppliers', url: '/inventory/suppliers', icon: Truck },
+  { title: 'Low Stock Alerts', url: '/inventory/low-stock', icon: AlertTriangle },
+]
+
+const analyticsItems = [
+  { title: 'Reports', url: '/reports', icon: BarChart3 },
+  { title: 'Sales Reports', url: '/reports/sales', icon: TrendingUp },
+  { title: 'Inventory Reports', url: '/reports/inventory', icon: PieChart },
+]
+
+const adminItems = [
+  { title: 'User Management', url: '/admin/users', icon: Users },
+  { title: 'Roles & Permissions', url: '/admin/roles', icon: Shield },
+  { title: 'System Settings', url: '/admin/settings', icon: Settings },
+]
 </script>

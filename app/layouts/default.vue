@@ -1,20 +1,23 @@
 <template>
   <SidebarProvider>
     <AppSidebar />
-    <main>
-      <SidebarTrigger />
-      <slot />
-    </main>
-  </SidebarProvider>
-  
-  <div>
+    <SidebarInset>
+      <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger class="-ml-1" />
+      </header>
+      <div class="flex flex-1 flex-col gap-4 p-6">
+        <slot />
+      </div>
+    </SidebarInset>
     <Toaster />
-  </div>
+  </SidebarProvider>
 </template>
 
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue'
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
+//import main css
+import '@/assets/css/main.css'
 </script>

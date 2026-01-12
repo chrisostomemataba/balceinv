@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
+definePageMeta({
+  layout: 'auth'
+})
 const formSchema = toTypedSchema(z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required').min(6, 'Password must be at least 6 characters')
