@@ -1,16 +1,19 @@
+
 <!-- AppHeader.vue -->
 <template>
   <header class="fixed top-0 left-0 right-0 h-16 border-b bg-background z-50">
     <div class="flex items-center justify-between h-full px-4 gap-4">
       <!-- Left section -->
       <div class="flex items-center gap-3">
+        <!-- Toggle button - visible on all screen sizes -->
         <button 
           @click="toggleSidebar"
-          class="md:hidden flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors"
+          class="flex items-center justify-center h-9 w-9 rounded-md hover:bg-accent transition-colors flex-shrink-0"
         >
           <Menu class="h-5 w-5" />
         </button>
         
+        <!-- Search bar -->
         <div class="hidden md:flex items-center gap-2">
           <Search class="h-4 w-4 text-muted-foreground" />
           <Input 
@@ -22,12 +25,14 @@
 
       <!-- Right section -->
       <div class="flex items-center gap-3">
-        <button class="flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors">
+        <!-- Notifications -->
+        <button class="flex items-center justify-center h-9 w-9 rounded-md hover:bg-accent transition-colors">
           <Bell class="h-5 w-5" />
         </button>
         
+        <!-- User profile -->
         <div class="flex items-center gap-2 pl-3 border-l">
-          <Avatar class="h-8 w-8">
+          <Avatar class="h-9 w-9">
             <AvatarFallback>{{ getInitials(user.full_name) }}</AvatarFallback>
           </Avatar>
           <div class="hidden md:block text-sm">
