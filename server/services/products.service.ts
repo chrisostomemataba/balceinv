@@ -54,7 +54,7 @@ export class ProductsService {
     const body = await readBody(event);
     
     const exists = await db.query.products.findFirst({
-      where: eq(tables.products.sku, body.sku)
+      where: eq(tables.products.sku, (body as any)?.sku || '')
     });
     
     if (exists) {
@@ -63,26 +63,26 @@ export class ProductsService {
     
     const [product] = await db.insert(tables.products)
       .values({
-        name: body.name,
-        sku: body.sku,
-        barcode: body.barcode || null,
-        price: body.price,
-        costPrice: body.costPrice,
-        quantity: body.quantity || 0,
-        minStock: body.minStock || 5,
-        wholesalePrice: body.wholesalePrice || null,
-        wholesaleMin: body.wholesaleMin || 10,
-        category: body.category || null,
-        unit: body.unit || 'pcs',
-        piecesPerUnit: body.piecesPerUnit || 1
+        name: (body as any)?.name || '',
+        sku: (body as any)?.sku || '',
+        barcode: (body as any)?.barcode || null,
+        price: (body as any)?.price || 0,
+        costPrice: (body as any)?.costPrice || 0,
+        quantity: (body as any)?.quantity || 0,
+        minStock: (body as any)?.minStock || 5,
+        wholesalePrice: (body as any)?.wholesalePrice || null,
+        wholesaleMin: (body as any)?.wholesaleMin || 10,
+        category: (body as any)?.category || null,
+        unit: (body as any)?.unit || 'pcs', 
+        piecesPerUnit: (body as any)?.piecesPerUnit || 1
       })
       .returning();
     
-    if (body.quantity > 0) {
+    if ((body as any)?.quantity > 0) {
       await db.insert(tables.stockMovements).values({
         productId: product.id,
-        change: body.quantity,
-        newQuantity: body.quantity,
+        change: (body as any)?.quantity || 0,
+        newQuantity: (body as any)?.quantity || 0,
         reason: 'adjust',
         reference: 'Initial stock'
       });
@@ -102,25 +102,25 @@ export class ProductsService {
       throw createError({ statusCode: 404, message: 'Product not found' });
     }
     
-    if (body.price && body.price !== existing.price) {
+    if ((body as any)?.price && (body as any)?.price !== existing.price) {
       await db.insert(tables.priceHistory).values({
         productId: id,
         oldPrice: existing.price,
-        newPrice: body.price
+        newPrice: (body as any)?.price || 0
       });
     }
     
     const [product] = await db.update(tables.products)
       .set({
-        name: body.name,
-        price: body.price,
-        costPrice: body.costPrice,
-        minStock: body.minStock,
-        wholesalePrice: body.wholesalePrice,
-        wholesaleMin: body.wholesaleMin,
-        category: body.category,
-        unit: body.unit,
-        piecesPerUnit: body.piecesPerUnit,
+        name: (body as any)?.name || '',
+        price: (body as any)?.price || 0,
+        costPrice: (body as any)?.costPrice || 0,
+        minStock: (body as any)?.minStock || 5,
+        wholesalePrice: (body as any)?.wholesalePrice || null,
+        wholesaleMin: (body as any)?.wholesaleMin || 10,
+        category: (body as any)?.category || null,
+        unit: (body as any)?.unit || 'pcs',
+        piecesPerUnit: (body as any)?.piecesPerUnit || 1,
         updatedAt: new Date()
       })
       .where(eq(tables.products.id, id))
@@ -171,18 +171,18 @@ export class ProductsService {
         
         const [product] = await db.insert(tables.products)
           .values({
-            name: row.name,
-            sku: row.sku,
+            name: row.name || '',
+            sku: row.sku || '',
             barcode: row.barcode || null,
-            price: parseFloat(row.price),
-            costPrice: parseFloat(row.costPrice),
-            quantity: parseInt(row.quantity) || 0,
-            minStock: parseInt(row.minStock) || 5,
-            wholesalePrice: row.wholesalePrice ? parseFloat(row.wholesalePrice) : null,
-            wholesaleMin: parseInt(row.wholesaleMin) || 10,
+            price: parseFloat(row.price || '0'),
+            costPrice: parseFloat(row.costPrice || '0'),
+            quantity: parseInt(row.quantity || '0') || 0,
+            minStock: parseInt(row.minStock || '5') || 5,
+            wholesalePrice: row.wholesalePrice ? parseFloat(row.wholesalePrice || '0') : null,
+            wholesaleMin: parseInt(row.wholesaleMin || '10') || 10,
             category: row.category || null,
             unit: row.unit || 'pcs',
-            piecesPerUnit: parseInt(row.piecesPerUnit) || 1
+            piecesPerUnit: parseInt(row.piecesPerUnit || '1') || 1
           })
           .returning();
         

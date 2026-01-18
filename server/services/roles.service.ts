@@ -34,10 +34,11 @@ export class RolesService {
   }
 
   static async create(event: H3Event): Promise<ServiceResponse> {
-    const { name } = await readBody(event);
+    const body = await readBody(event) as { name?: string };
+    const { name } = body;
     
     const exists = await db.query.roles.findFirst({
-      where: eq(tables.roles.name, name)
+      where: eq(tables.roles.name, (name as any) || '')
     });
     
     if (exists) {
@@ -45,14 +46,15 @@ export class RolesService {
     }
     
     const [role] = await db.insert(tables.roles)
-      .values({ name })
+      .values({ name: (name as any) || '' })
       .returning();
     
     return { success: true, message: 'Role created', data: role };
   }
 
   static async update(event: H3Event, id: number): Promise<ServiceResponse> {
-    const { name } = await readBody(event);
+    const body = await readBody(event) as { name?: string };
+    const { name } = body;
     
     const exists = await db.query.roles.findFirst({
       where: eq(tables.roles.id, id)
@@ -63,7 +65,7 @@ export class RolesService {
     }
     
     const [role] = await db.update(tables.roles)
-      .set({ name })
+      .set({ name: (name as any) || '' })
       .where(eq(tables.roles.id, id))
       .returning();
     
@@ -88,10 +90,11 @@ export class RolesService {
   }
 
   static async assignRole(event: H3Event): Promise<ServiceResponse> {
-    const { userId, roleId } = await readBody(event);
+    const body = await readBody(event) as { userId?: number; roleId?: number };
+    const { userId, roleId } = body;
     
     const user = await db.query.users.findFirst({
-      where: eq(tables.users.id, userId)
+      where: eq(tables.users.id, userId || 0)
     });
     
     if (!user) {
@@ -99,7 +102,7 @@ export class RolesService {
     }
     
     const role = await db.query.roles.findFirst({
-      where: eq(tables.roles.id, roleId)
+      where: eq(tables.roles.id, roleId || 0)
     });
     
     if (!role) {
@@ -107,8 +110,8 @@ export class RolesService {
     }
     
     await db.update(tables.users)
-      .set({ roleId })
-      .where(eq(tables.users.id, userId));
+      .set({ roleId: roleId || 0 })
+      .where(eq(tables.users.id, userId || 0));
     
     return { success: true, message: 'Role assigned to user' };
   }
