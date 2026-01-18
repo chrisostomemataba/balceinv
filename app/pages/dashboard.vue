@@ -32,22 +32,22 @@ const formatDate = (dateStr: string) => {
 }
 
 const lineChartData = computed(() => ({
-  labels: data.value?.dailySales?.map(d => formatDate(d.date)) || [],
+  labels: data.value?.dailySales?.map((d: { date: string }) => formatDate(d.date)) || [],
   datasets: [{
     label: 'Sales',
     backgroundColor: '#2563eb',
     borderColor: '#2563eb',
-    data: data.value?.dailySales?.map(d => d.total) || [],
+    data: data.value?.dailySales?.map((d: { total: number }) => d.total) || [],
     tension: 0.4
   }]
 }))
 
 const barChartData = computed(() => ({
-  labels: data.value?.topProducts?.map(p => p.name) || [],
+  labels: data.value?.topProducts?.map((p: { name: string }) => p.name) || [],
   datasets: [{
     label: 'Units Sold',
     backgroundColor: '#2563eb',
-    data: data.value?.topProducts?.map(p => p.totalSold) || []
+    data: data.value?.topProducts?.map((p: { totalSold: number }) => p.totalSold) || []
   }]
 }))
 
