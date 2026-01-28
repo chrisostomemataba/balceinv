@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TrendingUp, DollarSign, ShoppingCart, Receipt } from 'lucide-vue-next';
+import { TrendingUp, DollarSign, ShoppingCart, Receipt, Upload, Download, FileSpreadsheet } from 'lucide-vue-next';
 import { columns } from '@/components/sales/columns';
 import DataTable from '@/components/sales/DataTable.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,17 +7,38 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useSales } from '@/composables/useSales';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'vue-sonner';
 
-const { sales, loading, selectedSale, monthlySummary, fetchSales, fetchSale, fetchMonthlySales } = useSales();
+const { 
+  sales, 
+  loading, 
+  selectedSale, 
+  monthlySummary, 
+  fetchSales, 
+  fetchSale, 
+  fetchMonthlySales,
+  uploadSalesExcel,
+  downloadTemplate,
+  exportSales
+} = useSales();
 
 const showDetailsDialog = ref(false);
+const showUploadDialog = ref(false);
+const uploadFile = ref<File | null>(null);
+const exportDateRange = ref<{ start: Date | null; end: Date | null }>({
+  start: null,
+  end: null
+});
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-TZ', {
@@ -62,6 +83,36 @@ const handleTypeFilter = async (saleType: string) => {
   await fetchSales({ saleType });
 };
 
+const handleFileUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files[0]) {
+    uploadFile.value = input.files[0];
+  }
+};
+
+const handleUpload = async () => {
+  if (!uploadFile.value) {
+    toast.error('Please select a file');
+    return;
+  }
+
+  try {
+    await uploadSalesExcel(uploadFile.value);
+    showUploadDialog.value = false;
+    uploadFile.value = null;
+  } catch (error) {
+    console.error('Upload failed:', error);
+  }
+};
+
+const handleExport = () => {
+  if (exportDateRange.value.start && exportDateRange.value.end) {
+    exportSales(exportDateRange.value.start, exportDateRange.value.end);
+  } else {
+    exportSales();
+  }
+};
+
 const totalRevenue = computed(() => monthlySummary.value?.totalRevenue || 0);
 const totalTransactions = computed(() => monthlySummary.value?.totalTransactions || 0);
 const averageTransaction = computed(() => monthlySummary.value?.averageTransaction || 0);
@@ -77,10 +128,24 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           View and manage sales transactions
         </p>
       </div>
-      <Button @click="$router.push('/pos')">
-        <ShoppingCart class="mr-2 h-4 w-4" />
-        Go to POS
-      </Button>
+      <div class="flex flex-wrap gap-2">
+        <Button variant="outline" @click="showUploadDialog = true" :disabled="loading">
+          <Upload class="mr-2 h-4 w-4" />
+          Import Sales
+        </Button>
+        <Button variant="outline" @click="downloadTemplate">
+          <Download class="mr-2 h-4 w-4" />
+          Template
+        </Button>
+        <Button variant="outline" @click="handleExport">
+          <FileSpreadsheet class="mr-2 h-4 w-4" />
+          Export Report
+        </Button>
+        <Button @click="$router.push('/pos')">
+          <ShoppingCart class="mr-2 h-4 w-4" />
+          Go to POS
+        </Button>
+      </div>
     </div>
 
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -240,20 +305,47 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
 
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Subtotal</span>
-              <span class="font-medium">{{ formatCurrency(selectedSale.totalAmount - selectedSale.taxAmount) }}</span>
+              <span class="text-muted-foreground">Total</span>
+              <span class="font-semibold">{{ formatCurrency(selectedSale.totalAmount) }}</span>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Tax (18%)</span>
-              <span class="font-medium">{{ formatCurrency(selectedSale.taxAmount) }}</span>
-            </div>
-            <Separator />
-            <div class="flex justify-between text-lg font-bold">
-              <span>Total</span>
-              <span>{{ formatCurrency(selectedSale.totalAmount) }}</span>
-            </div>
+            <p class="text-xs text-muted-foreground">* Price includes 18% VAT</p>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="showUploadDialog">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Import Sales from Excel</DialogTitle>
+          <DialogDescription>
+            Upload an Excel file with your sales data. Make sure to use the provided template.
+          </DialogDescription>
+        </DialogHeader>
+        <div class="space-y-4 py-4">
+          <div class="space-y-2">
+            <Label for="file">Select Excel File</Label>
+            <Input 
+              id="file" 
+              type="file" 
+              accept=".xlsx,.xls"
+              @change="handleFileUpload"
+            />
+          </div>
+          <div class="text-sm text-muted-foreground">
+            <p>• Each receipt can have multiple items</p>
+            <p>• Use the same receipt number for items in the same transaction</p>
+            <p>• Date format: YYYY-MM-DD</p>
+            <p>• Payment type: cash, card, or mobile</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showUploadDialog = false">Cancel</Button>
+          <Button @click="handleUpload" :disabled="!uploadFile || loading">
+            <Upload class="mr-2 h-4 w-4" />
+            Import
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   </div>

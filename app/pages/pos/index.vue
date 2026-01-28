@@ -78,8 +78,7 @@ const subtotal = computed(() => {
   }, 0);
 });
 
-const tax = computed(() => subtotal.value * 0.18);
-const total = computed(() => subtotal.value + tax.value);
+const total = computed(() => subtotal.value);
 
 const totalItems = computed(() => {
   return cart.value.reduce((sum, item) => sum + item.quantity, 0);
@@ -118,8 +117,8 @@ const addToCart = (product: any) => {
     }
     existingItem.quantity++;
     
-    const shouldBeWholesale = !!(product.wholesalePrice && 
-                             existingItem.quantity >= (product.wholesaleMin || 10));
+    const shouldBeWholesale = product.wholesalePrice && 
+                             existingItem.quantity >= (product.wholesaleMin || 10);
     existingItem.isWholesale = shouldBeWholesale;
   } else {
     cart.value.push({
@@ -153,7 +152,7 @@ const updateQuantity = (item: CartItem, change: number) => {
 
   item.quantity = newQuantity;
   
-  const shouldBeWholesale = !!(item.wholesalePrice && 
+  const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
 };
@@ -173,7 +172,7 @@ const setQuantity = (item: CartItem, value: string) => {
 
   item.quantity = quantity;
   
-  const shouldBeWholesale = !!(item.wholesalePrice && 
+  const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
 };
@@ -359,19 +358,11 @@ const handleSuccessClose = () => {
             </CardHeader>
             <CardContent class="space-y-4">
               <div class="space-y-2">
-                <div class="flex justify-between text-sm">
-                  <span class="text-muted-foreground">Subtotal</span>
-                  <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-muted-foreground">Tax (18%)</span>
-                  <span class="font-medium">{{ formatCurrency(tax) }}</span>
-                </div>
-                <Separator />
                 <div class="flex justify-between text-xl font-bold">
                   <span>Total</span>
                   <span>{{ formatCurrency(total) }}</span>
                 </div>
+                <p class="text-xs text-muted-foreground text-center">* Price includes 18% VAT</p>
               </div>
 
               <Button 
@@ -480,6 +471,7 @@ const handleSuccessClose = () => {
               <span>Total Amount</span>
               <span class="font-bold text-lg">{{ formatCurrency(total) }}</span>
             </div>
+            <p class="text-xs text-muted-foreground">* Price includes 18% VAT</p>
           </div>
         </div>
         <DialogFooter>
