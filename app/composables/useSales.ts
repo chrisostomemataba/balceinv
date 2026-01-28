@@ -59,6 +59,14 @@ interface MonthlySalesSummary extends DailySalesSummary {
   averageTransaction: number;
 }
 
+interface UploadResult {
+  created: number;
+  errors: Array<{
+    row: number;
+    error: string;
+  }>;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -206,6 +214,55 @@ export const useSales = () => {
     }
   };
 
+  const uploadSalesExcel = async (file: File): Promise<UploadResult | undefined> => {
+    loading.value = true;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await $fetch<ApiResponse<UploadResult>>('/api/sales/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      toast.success(response.message);
+      
+      if (response.data.errors.length > 0) {
+        toast.warning(`${response.data.errors.length} sales had errors`);
+      }
+      
+      await fetchSales();
+      return response.data;
+    } catch (error: unknown) {
+      const fetchError = error as FetchError;
+      toast.error(fetchError.data?.message || 'Failed to upload sales');
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const downloadTemplate = (): void => {
+    window.open('/api/sales/template', '_blank');
+    toast.success('Template downloaded');
+  };
+
+  const exportSales = (startDate?: Date, endDate?: Date): void => {
+    const query = new URLSearchParams();
+    if (startDate) {
+      query.append('startDate', startDate.toISOString().split('T')[0] || '');
+    }
+    if (endDate) {
+      query.append('endDate', endDate.toISOString().split('T')[0] || '');
+    }
+    
+    const queryString = query.toString();
+    const url = queryString ? `/api/sales/export?${queryString}` : '/api/sales/export';
+    
+    window.open(url, '_blank');
+    toast.success('Sales report downloaded');
+  };
+
   return {
     sales,
     loading,
@@ -217,6 +274,9 @@ export const useSales = () => {
     createSale,
     fetchDailySales,
     fetchMonthlySales,
-    fetchSalesByDateRange
+    fetchSalesByDateRange,
+    uploadSalesExcel,
+    downloadTemplate,
+    exportSales
   };
 };
