@@ -215,6 +215,29 @@ export const salesRelations = relations(sales, ({ one, many }) => ({
   items: many(saleItems),
 }));
 
+export const saleItemsRelations = relations(saleItems, ({ one }) => ({
+  sale: one(sales, { fields: [saleItems.saleId], references: [sales.id] }),
+  product: one(products, { fields: [saleItems.productId], references: [products.id] }),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
+  user:    one(users,    { fields: [stockMovements.userId],    references: [users.id] }),
+  // optional
+  sale:    one(sales,    { fields: [stockMovements.reference], references: [sales.receiptNumber] }), // if reference = receiptNumber
+}));
+
+export const purchasesRelations = relations(purchases, ({ one, many }) => ({
+  supplier: one(suppliers, { fields: [purchases.supplierId], references: [suppliers.id] }),
+  user:     one(users,     { fields: [purchases.userId],     references: [users.id] }),
+  items:    many(purchaseItems),
+}));
+
+export const purchaseItemsRelations = relations(purchaseItems, ({ one }) => ({
+  purchase: one(purchases, { fields: [purchaseItems.purchaseId], references: [purchases.id] }),
+  product:  one(products,  { fields: [purchaseItems.productId],  references: [products.id] }),
+}));
+
 // Types
 export type Role = InferSelectModel<typeof roles>;
 export type User = InferSelectModel<typeof users>;

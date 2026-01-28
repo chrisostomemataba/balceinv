@@ -1,6 +1,7 @@
-import { H3Event, createError, readBody, getQuery } from 'h3';
+import { H3Event, createError, readBody, getQuery, readMultipartFormData } from 'h3';
 import { eq, sql, and, gte, lte, desc } from 'drizzle-orm';
 import { db, tables } from '../utils/db';
+import * as XLSX from 'xlsx';
 
 interface ServiceResponse<T = unknown> { 
   success: boolean; 
@@ -53,8 +54,6 @@ interface SalesQuery {
   endDate?: string;
   paymentType?: 'cash' | 'card' | 'mobile';
   saleType?: 'retail' | 'wholesale';
-  page?: number;
-  limit?: number;
 }
 
 interface EFDResponse {
@@ -62,6 +61,29 @@ interface EFDResponse {
   receiptNumber?: string;
   fiscalCode?: string;
   error?: string;
+}
+
+interface ExcelSaleRow {
+  receiptNumber: string;
+  saleDate: string;
+  paymentType: string;
+  saleType: string;
+  productName: string;
+  productSKU: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  isWholesale: string;
+}
+
+interface UploadSaleError {
+  row: number;
+  error: string;
+}
+
+interface UploadSalesResult {
+  created: number;
+  errors: UploadSaleError[];
 }
 
 export class SalesService {
@@ -121,7 +143,10 @@ export class SalesService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown EFD error';
       console.error('EFD integration error:', errorMessage);
       
-      return { success: false, error: errorMessage };
+      return {
+        success: false,
+        error: errorMessage
+      };
     }
   }
 
@@ -163,9 +188,13 @@ export class SalesService {
         });
       }
 
-      const isWholesale = !!(item.isWholesale && product.wholesalePrice && item.quantity >= (product.wholesaleMin || 10));
+      const isWholesale = !!(item.isWholesale && 
+                         product.wholesalePrice && 
+                         item.quantity >= (product.wholesaleMin || 10));
       
-      const unitPrice = isWholesale && product.wholesalePrice ? product.wholesalePrice : product.price;
+      const unitPrice = isWholesale && product.wholesalePrice 
+        ? product.wholesalePrice 
+        : product.price;
       
       const itemTotal = unitPrice * item.quantity;
 
@@ -174,7 +203,7 @@ export class SalesService {
         quantity: item.quantity,
         unitPrice,
         totalPrice: itemTotal,
-        isWholesale: isWholesale
+        isWholesale
       });
 
       efdItems.push({
@@ -201,7 +230,7 @@ export class SalesService {
       });
     }
 
-    const taxAmount = body.taxAmount ?? 0;
+    const taxAmount = totalAmount * 0.18 / 1.18;
 
     const [sale] = await db.insert(tables.sales)
       .values({
@@ -376,7 +405,7 @@ export class SalesService {
     });
 
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const totalTax = sales.reduce((sum, sale) => sum + (sale.taxAmount || 0), 0);
+    const totalTax = sales.reduce((sum, sale) => sum + (sale.taxAmount ?? 0), 0);
 
     return {
       success: true,
@@ -409,7 +438,7 @@ export class SalesService {
     });
 
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const totalTax = sales.reduce((sum, sale) => sum + (sale.taxAmount || 0), 0);
+    const totalTax = sales.reduce((sum, sale) => sum + (sale.taxAmount ?? 0), 0);
     const averageTransaction = sales.length > 0 ? totalRevenue / sales.length : 0;
 
     return {
@@ -423,5 +452,213 @@ export class SalesService {
         averageTransaction
       }
     };
+  }
+
+  static async uploadSalesExcel(event: H3Event, userId: number): Promise<ServiceResponse<UploadSalesResult>> {
+    const formData = await readMultipartFormData(event);
+    
+    if (!formData || !formData[0]) {
+      throw createError({ statusCode: 400, message: 'No file uploaded' });
+    }
+    
+    const fileData = formData[0].data;
+    const workbook = XLSX.read(fileData);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet) as ExcelSaleRow[];
+    
+    let createdCount = 0;
+    const errors: UploadSaleError[] = [];
+    
+    const salesByReceipt = new Map<string, ExcelSaleRow[]>();
+    
+    rows.forEach((row, index) => {
+      const receiptNumber = row.receiptNumber;
+      if (!salesByReceipt.has(receiptNumber)) {
+        salesByReceipt.set(receiptNumber, []);
+      }
+      salesByReceipt.get(receiptNumber)!.push(row);
+    });
+
+    for (const [receiptNumber, items] of salesByReceipt) {
+      try {
+        const firstItem = items[0];
+        
+        const saleDate = new Date(firstItem.saleDate);
+        if (isNaN(saleDate.getTime())) {
+          throw new Error('Invalid date format');
+        }
+
+        const paymentType = firstItem.paymentType?.toLowerCase();
+        if (!['cash', 'card', 'mobile'].includes(paymentType)) {
+          throw new Error('Invalid payment type');
+        }
+
+        const saleType = firstItem.saleType?.toLowerCase();
+        if (!['retail', 'wholesale'].includes(saleType)) {
+          throw new Error('Invalid sale type');
+        }
+
+        let totalAmount = 0;
+        const processedItems: Array<{
+          productId: number;
+          quantity: number;
+          unitPrice: number;
+          totalPrice: number;
+          isWholesale: boolean;
+        }> = [];
+
+        for (const item of items) {
+          const product = await db.query.products.findFirst({
+            where: eq(tables.products.sku, item.productSKU)
+          });
+
+          if (!product) {
+            throw new Error(`Product ${item.productSKU} not found`);
+          }
+
+          const quantity = parseInt(String(item.quantity));
+          const unitPrice = parseFloat(String(item.unitPrice));
+          const itemTotal = parseFloat(String(item.totalPrice));
+
+          processedItems.push({
+            productId: product.id,
+            quantity,
+            unitPrice,
+            totalPrice: itemTotal,
+            isWholesale: item.isWholesale?.toLowerCase() === 'yes'
+          });
+
+          totalAmount += itemTotal;
+        }
+
+        const taxAmount = totalAmount * 0.18 / 1.18;
+
+        const [sale] = await db.insert(tables.sales)
+          .values({
+            receiptNumber,
+            userId,
+            totalAmount,
+            paymentType: paymentType as 'cash' | 'card' | 'mobile',
+            saleType: saleType as 'retail' | 'wholesale',
+            taxAmount,
+            createdAt: saleDate
+          })
+          .returning();
+
+        const saleItemsData = processedItems.map(item => ({
+          saleId: sale.id,
+          ...item
+        }));
+
+        await db.insert(tables.saleItems).values(saleItemsData);
+
+        createdCount++;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        errors.push({ row: 0, error: `${receiptNumber}: ${errorMessage}` });
+      }
+    }
+    
+    return {
+      success: true,
+      message: `Imported ${createdCount} sales`,
+      data: { created: createdCount, errors }
+    };
+  }
+
+  static getSalesTemplate(): Buffer {
+    const template = [
+      {
+        receiptNumber: 'SALE-001',
+        saleDate: '2025-01-15',
+        paymentType: 'cash',
+        saleType: 'retail',
+        productName: 'Sample Product',
+        productSKU: 'SKU001',
+        quantity: 2,
+        unitPrice: 1000,
+        totalPrice: 2000,
+        isWholesale: 'no'
+      },
+      {
+        receiptNumber: 'SALE-001',
+        saleDate: '2025-01-15',
+        paymentType: 'cash',
+        saleType: 'retail',
+        productName: 'Another Product',
+        productSKU: 'SKU002',
+        quantity: 1,
+        unitPrice: 500,
+        totalPrice: 500,
+        isWholesale: 'no'
+      }
+    ];
+    
+    const worksheet = XLSX.utils.json_to_sheet(template);
+    
+    worksheet['!cols'] = [
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 25 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 }
+    ];
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales');
+    
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+static async exportSalesReport(startDate?: Date, endDate?: Date): Promise<Buffer> {
+    const where = [];
+    if (startDate) where.push(gte(tables.sales.createdAt, startDate));
+    if (endDate) {
+      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+      where.push(lte(tables.sales.createdAt, end));
+    }
+
+    const sales = await db.query.sales.findMany({
+      where: where.length ? and(...where) : undefined,
+      orderBy: [desc(tables.sales.createdAt)],
+      with: { items: { with: { product: true } }, user: { columns: { name: true } } }
+    });
+
+    const reportData = sales.flatMap(sale => 
+      sale.items.map(item => ({
+        'Receipt Number': sale.receiptNumber,
+        'Date': new Date(sale.createdAt || new Date()).toLocaleDateString('en-TZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        'Product Name': item.product?.name ?? 'Unknown Product',
+        'SKU': item.product?.sku ?? 'N/A',
+        'Quantity': item.quantity,
+        'Unit Price': item.unitPrice,
+        'Total Price': item.totalPrice,
+        'Wholesale': item.isWholesale ? 'Yes' : 'No',
+        'Payment Method': sale.paymentType.toUpperCase(),
+        'Sale Type': (sale.saleType ?? 'retail').replace(/^\w/, c => c.toUpperCase()),
+        'Sold By': sale.user?.name ?? 'Unknown',
+        'Sale Total': sale.totalAmount
+      }))
+    );
+
+    const totalRevenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const totalTax = sales.reduce((sum, s) => sum + (s.taxAmount ?? 0), 0);
+
+    const summaryData = [
+      { Metric: 'Total Sales', Value: sales.length },
+      { Metric: 'Total Revenue', Value: totalRevenue },
+      { Metric: 'Total Tax', Value: totalTax },
+      { Metric: 'Average Transaction', Value: sales.length ? totalRevenue / sales.length : 0 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryData), 'Summary');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reportData), 'Sales Details');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   }
 }
