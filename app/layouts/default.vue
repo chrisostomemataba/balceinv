@@ -14,6 +14,7 @@
       >
         <slot />
       </main>
+      <Toaster />
     </div>
     
     <AppFooter />
@@ -23,4 +24,7 @@
 <script setup>
 // Get shared sidebar state
 const sidebarCollapsed = useState('sidebar-collapsed', () => false)
+
+import 'vue-sonner/style.css'
+import { Toaster } from '@/components/ui/sonner'
 </script>
