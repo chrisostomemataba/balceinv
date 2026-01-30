@@ -87,200 +87,307 @@ interface UploadSalesResult {
 }
 
 export class SalesService {
-  private static generateReceiptNumber(): string {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `SALE-${timestamp}-${random}`;
+
+  static async getSettings() {
+    try {
+      const systemSettings = await db.select().from(tables.settings).limit(1);
+      return systemSettings[0] || null;
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      return null;
+    }
   }
 
-  private static async sendToEFD(saleData: {
-    receiptNumber: string;
-    items: Array<{ name: string; quantity: number; price: number; total: number }>;
-    total: number;
-    tax: number;
-    paymentType: string;
-  }): Promise<EFDResponse> {
+  static async generateReceiptNumber(): Promise<string> {
     try {
-      const efdEndpoint = process.env.EFD_ENDPOINT || '';
-      const efdApiKey = process.env.EFD_API_KEY || '';
+      const systemSettings = await this.getSettings();
+      const format = systemSettings?.receiptNumberFormat || 'SALE-{TIMESTAMP}-{COUNTER}';
+      
+      // Get today's sales count for counter
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTimestamp = Math.floor(today.getTime() / 1000);
+      
+      const todaySales = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tables.sales)
+        .where(gte(tables.sales.createdAt, new Date(todayTimestamp * 1000)));
+      
+      const counter = (todaySales[0]?.count || 0) + 1;
+      const timestamp = Date.now();
 
-      if (!efdEndpoint) {
-        console.warn('EFD endpoint not configured, skipping TRA integration');
-        return { 
-          success: false, 
-          error: 'EFD not configured' 
-        };
+      let receiptNumber = format
+        .replace('{TIMESTAMP}', timestamp.toString())
+        .replace('{COUNTER}', counter.toString().padStart(4, '0'))
+        .replace('{DATE}', new Date().toISOString().split('T')[0].replace(/-/g, ''));
+      
+      return receiptNumber;
+    } catch (error) {
+      console.error('Error generating receipt number:', error);
+      // Fallback to simple format
+      return `SALE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+  }
+
+  static calculateTotals(items: any[], systemSettings: any) {
+    const subtotal = items.reduce((sum, item) => {
+      const product = item.product;
+      const price = item.isWholesale && product.wholesalePrice 
+        ? product.wholesalePrice 
+        : product.price;
+      return sum + (price * item.quantity);
+    }, 0);
+
+    // Tax is already included in the price (as per POS design)
+    const taxRate = systemSettings?.taxRate || 18;
+    const taxAmount = subtotal * (taxRate / (100 + taxRate));
+    
+    return {
+      subtotal,
+      taxAmount,
+      total: subtotal,
+    };
+  }
+
+  /**
+   * Send sale data to EFD (TRA Electronic Fiscal Device)
+   */
+  private static async sendToEFD(
+    receiptNumber: string,
+    items: any[],
+    total: number,
+    taxAmount: number,
+    settings: any
+  ) {
+    try {
+      // Only attempt if EFD is enabled and configured
+      if (!settings?.efdEnabled || !settings?.efdEndpoint) {
+        return null;
       }
 
-      const response = await fetch(efdEndpoint, {
+      // Prepare EFD payload
+      const efdPayload = {
+        receiptNumber,
+        timestamp: new Date().toISOString(),
+        items: items.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.isWholesale && item.product.wholesalePrice 
+            ? item.product.wholesalePrice 
+            : item.product.price,
+          taxRate: settings.taxRate || 18,
+        })),
+        totalAmount: total,
+        taxAmount,
+        tin: settings.businessTIN,
+      };
+
+      // Send to EFD endpoint
+      const response = await fetch(settings.efdEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${efdApiKey}`
+          'Authorization': `Bearer ${settings.efdApiKey}`,
         },
-        body: JSON.stringify({
-          receiptNumber: saleData.receiptNumber,
-          items: saleData.items,
-          totalAmount: saleData.total,
-          taxAmount: saleData.tax,
-          paymentMethod: saleData.paymentType,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(efdPayload),
       });
 
       if (!response.ok) {
-        throw new Error(`EFD request failed: ${response.statusText}`);
+        console.error('EFD submission failed:', response.statusText);
+        return { success: false, error: response.statusText };
       }
 
       const result = await response.json();
-      
-      return {
-        success: true,
-        receiptNumber: result.receiptNumber,
-        fiscalCode: result.fiscalCode
-      };
+      return { success: true, data: result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown EFD error';
-      console.error('EFD integration error:', errorMessage);
-      
-      return {
-        success: false,
-        error: errorMessage
-      };
+      console.error('Error sending to EFD:', error);
+      return { success: false, error: String(error) };
     }
   }
 
-  static async createSale(event: H3Event, userId: number): Promise<ServiceResponse<SaleData>> {
-    const body = await readBody<CreateSaleInput>(event);
-
-    if (!body.items || body.items.length === 0) {
-      throw createError({ statusCode: 400, message: 'No items provided' });
-    }
-
-    const receiptNumber = this.generateReceiptNumber();
-    let totalAmount = 0;
-    const processedItems: Array<{
-      productId: number;
-      quantity: number;
-      unitPrice: number;
-      totalPrice: number;
-      isWholesale: boolean;
-    }> = [];
-
-    const efdItems: Array<{ name: string; quantity: number; price: number; total: number }> = [];
-
-    for (const item of body.items) {
-      const product = await db.query.products.findFirst({
-        where: eq(tables.products.id, item.productId)
-      });
-
-      if (!product) {
-        throw createError({ 
-          statusCode: 404, 
-          message: `Product with ID ${item.productId} not found` 
-        });
-      }
-
-      if (product.quantity < item.quantity) {
-        throw createError({ 
-          statusCode: 400, 
-          message: `Insufficient stock for ${product.name}. Available: ${product.quantity}` 
-        });
-      }
-
-      const isWholesale = !!(item.isWholesale && 
-                         product.wholesalePrice && 
-                         item.quantity >= (product.wholesaleMin || 10));
+static async createSale(data: {
+    userId: number;
+    items: Array<{ productId: number; quantity: number; isWholesale?: boolean }>;
+    paymentType: 'cash' | 'card' | 'mobile';
+    saleType?: 'retail' | 'wholesale';
+    amountPaid?: number; // Amount customer paid (for cash payments)
+    useEFD?: boolean;
+  }) {
+    try {
+      // Get system settings for EFD and receipt configuration
+      const systemSettings = await this.getSettings();
       
-      const unitPrice = isWholesale && product.wholesalePrice 
-        ? product.wholesalePrice 
-        : product.price;
-      
-      const itemTotal = unitPrice * item.quantity;
+      // Fetch all products involved in the sale
+      const itemsWithProducts = await Promise.all(
+        data.items.map(async (item) => {
+          const [product] = await db
+            .select()
+            .from(tables.products)
+            .where(eq(tables.products.id, item.productId));
 
-      processedItems.push({
-        productId: product.id,
-        quantity: item.quantity,
-        unitPrice,
-        totalPrice: itemTotal,
-        isWholesale
-      });
-
-      efdItems.push({
-        name: product.name,
-        quantity: item.quantity,
-        price: unitPrice,
-        total: itemTotal
-      });
-
-      totalAmount += itemTotal;
-
-      const newQuantity = product.quantity - item.quantity;
-      await db.update(tables.products)
-        .set({ quantity: newQuantity })
-        .where(eq(tables.products.id, product.id));
-
-      await db.insert(tables.stockMovements).values({
-        productId: product.id,
-        change: -item.quantity,
-        newQuantity,
-        reason: 'sale',
-        reference: receiptNumber,
-        userId
-      });
-    }
-
-    const taxAmount = totalAmount * 0.18 / 1.18;
-
-    const [sale] = await db.insert(tables.sales)
-      .values({
-        receiptNumber,
-        userId,
-        totalAmount,
-        paymentType: body.paymentType,
-        saleType: body.saleType || 'retail',
-        taxAmount
-      })
-      .returning();
-
-    const saleItemsData = processedItems.map(item => ({
-      saleId: sale.id,
-      ...item
-    }));
-
-    await db.insert(tables.saleItems).values(saleItemsData);
-
-    if (body.useEFD !== false) {
-      const efdResult = await this.sendToEFD({
-        receiptNumber,
-        items: efdItems,
-        total: totalAmount,
-        tax: taxAmount,
-        paymentType: body.paymentType
-      });
-
-      if (!efdResult.success) {
-        console.warn(`Sale ${receiptNumber} created but EFD failed: ${efdResult.error}`);
-      }
-    }
-
-    const saleWithItems = await db.query.sales.findFirst({
-      where: eq(tables.sales.id, sale.id),
-      with: {
-        items: {
-          with: {
-            product: {
-              columns: { name: true, sku: true }
-            }
+          if (!product) {
+            throw new Error(`Product with ID ${item.productId} not found`);
           }
+
+          // Check stock availability
+          if (product.quantity < item.quantity) {
+            throw new Error(`Insufficient stock for ${product.name}`);
+          }
+
+          return { ...item, product };
+        })
+      );
+
+      // Calculate totals
+      const { subtotal, taxAmount, total } = this.calculateTotals(itemsWithProducts, systemSettings);
+
+      // Calculate change if cash payment
+      let change = 0;
+      if (data.paymentType === 'cash' && data.amountPaid) {
+        change = data.amountPaid - total;
+        if (change < 0) {
+          throw new Error(`Insufficient payment. Required: ${total}, Paid: ${data.amountPaid}`);
         }
       }
-    });
 
-    return { 
-      success: true, 
-      message: 'Sale completed successfully', 
-      data: saleWithItems as SaleData
+      // Generate receipt number
+      const receiptNumber = await this.generateReceiptNumber();
+
+      // EFD Integration (if enabled)
+      let efdResponse = null;
+      if (systemSettings?.efdEnabled && data.useEFD) {
+        efdResponse = await SalesService.sendToEFD(
+          receiptNumber,
+          itemsWithProducts.map(item => ({
+            name: item.product.name,
+            quantity: item.quantity,
+            price: item.isWholesale ? item.product.wholesalePrice || item.product.price : item.product.price,
+            total: item.quantity * (item.isWholesale ? item.product.wholesalePrice || item.product.price : item.product.price)
+          })),
+          total,
+          taxAmount,
+          systemSettings
+        );
+      }
+
+      // Create the sale record
+      const [sale] = await db
+        .insert(tables.sales)
+        .values({
+          userId: data.userId,
+          receiptNumber,
+          totalAmount: total,
+          taxAmount,
+          paymentType: data.paymentType,
+          saleType: data.saleType || 'retail',
+        })
+        .returning();
+
+      // Create sale items and update stock
+      for (const item of itemsWithProducts) {
+        const product = item.product;
+        const unitPrice = item.isWholesale && product.wholesalePrice 
+          ? product.wholesalePrice 
+          : product.price;
+        const totalPrice = unitPrice * item.quantity;
+
+        // Insert sale item
+        await db.insert(tables.saleItems).values({
+          saleId: sale.id,
+          productId: product.id,
+          quantity: item.quantity,
+          unitPrice,
+          totalPrice,
+          isWholesale: item.isWholesale || false,
+        });
+
+        // Update product stock
+        const newQuantity = product.quantity - item.quantity;
+        await db
+          .update(tables.products)
+          .set({ quantity: newQuantity })
+          .where(eq(tables.products.id, product.id));
+
+        // Record stock movement
+        await db.insert(tables.stockMovements).values({
+          productId: product.id,
+          change: -item.quantity, // Negative because stock is reduced
+          newQuantity,
+          reason: 'sale',
+          reference: receiptNumber,
+          userId: data.userId,
+        });
+      }
+
+      // Return sale details including change and receipt structure
+      return {
+        id: sale.id,
+        receiptNumber: sale.receiptNumber,
+        total: sale.totalAmount,
+        taxAmount: sale.taxAmount,
+        paymentType: sale.paymentType,
+        amountPaid: data.amountPaid,
+        change, // Change to give back to customer
+        efdResponse, // EFD response if applicable
+        receiptData: this.generateReceiptData(sale, itemsWithProducts, systemSettings, change),
+      };
+    } catch (error) {
+      console.error('Error creating sale:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate receipt data structure for printing
+   */
+  static generateReceiptData(
+    sale: any,
+    items: any[],
+    settings: any,
+    change: number
+  ) {
+    return {
+      // Business details from settings
+      businessName: settings?.businessName || 'POS System',
+      businessAddress: settings?.businessAddress || '',
+      businessPhone: settings?.businessPhone || '',
+      businessTIN: settings?.businessTIN || '',
+      
+      // Receipt branding
+      receiptHeader: settings?.receiptHeader || '',
+      receiptFooter: settings?.receiptFooter || 'Thank you for your business!',
+      
+      // Sale details
+      receiptNumber: sale.receiptNumber,
+      date: new Date(),
+      paymentType: sale.paymentType,
+      
+      // Items
+      items: items.map(item => ({
+        name: item.product.name,
+        sku: item.product.sku,
+        quantity: item.quantity,
+        unitPrice: item.isWholesale && item.product.wholesalePrice 
+          ? item.product.wholesalePrice 
+          : item.product.price,
+        total: (item.isWholesale && item.product.wholesalePrice 
+          ? item.product.wholesalePrice 
+          : item.product.price) * item.quantity,
+        isWholesale: item.isWholesale || false,
+      })),
+      
+      // Totals
+      subtotal: sale.totalAmount - sale.taxAmount,
+      taxAmount: sale.taxAmount,
+      taxRate: settings?.taxRate || 18,
+      total: sale.totalAmount,
+      
+      // Change calculation (for cash)
+      change,
+      
+      // Currency
+      currency: settings?.currency || 'TZS',
+      currencySymbol: settings?.currencySymbol || 'TZS',
     };
   }
 

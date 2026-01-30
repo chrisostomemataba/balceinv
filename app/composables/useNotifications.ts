@@ -143,11 +143,16 @@ export const useNotifications = () => {
    */
   const markAsSeen = async (notificationId: number) => {
     try {
-      const response = await $fetch(`/api/notifications/${notificationId}/mark-seen`, {
+      const response = await fetch(`/api/notifications/${notificationId}/mark-seen`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+      
+      const result = await response.json();
 
-      if ((response as any).success) {
+      if (result.success) {
         // Update local state
         const notification = notifications.value.find(n => n.id === notificationId);
         if (notification) {
@@ -169,11 +174,16 @@ export const useNotifications = () => {
    */
   const markAllAsSeen = async () => {
     try {
-      const response = await $fetch('/api/notifications/mark-all-seen', {
+      const response = await fetch('/api/notifications/mark-all-seen', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+      
+      const result = await response.json();
 
-      if ((response as any).success) {
+      if (result.success) {
         // Update local state
         notifications.value.forEach(n => n.isSeen = true);
         notificationCount.value = 0;
