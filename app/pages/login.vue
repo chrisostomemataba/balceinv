@@ -65,7 +65,7 @@ const onSubmit = form.handleSubmit(async (values) => {
 <template>
   <div class="min-h-screen w-full grid lg:grid-cols-2">
     <!-- Left side - Welcome / Branding -->
-    <div class="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 p-10 text-white">
+    <div class="relative hidden lg:flex flex-col justify-between bg-linear-to-br from-slate-900 via-indigo-950 to-purple-950 p-10 text-white">
       <!-- Background pattern (subtle) -->
       <div class="absolute inset-0 opacity-10 pointer-events-none">
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_15%_50%,rgba(255,255,255,0.08)_0%,transparent_50%)]"></div>

@@ -1,5 +1,5 @@
 import { SalesService } from '../../services/sales.service';
-import { AuthService } from '../../services/auth.service.ts';
+import { AuthService } from '../../services/auth.service';
 
 export default defineEventHandler(async (event) => {
   const user = AuthService.getUserFromToken(event);
@@ -8,5 +8,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Unauthorized' });
   }
   
-  return await SalesService.createSale(event, user.userId);
+  const body = await readBody(event);
+  return await SalesService.createSale({ ...body, userId: user.userId });
 });
