@@ -8,6 +8,13 @@
       "when": 1768721024171,
       "tag": "0000_medical_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1769781118551,
+      "tag": "0001_jazzy_prowler",
+      "breakpoints": true
     }
   ]
 }
