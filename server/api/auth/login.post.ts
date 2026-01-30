@@ -1,4 +1,4 @@
-import { AuthService } from "../../services/auth.service.ts"
+import { AuthService } from "../../services/auth.service"
 
 export default defineEventHandler(async (event) => {
   return await AuthService.login(event)

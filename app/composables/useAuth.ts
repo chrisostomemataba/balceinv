@@ -1,3 +1,4 @@
+// composables/useAuth.ts
 interface User {
   id: number
   name: string
@@ -5,103 +6,83 @@ interface User {
   role: string
 }
 
-interface LoginResponse {
-  success: boolean
-  message: string
-  data?: {
-    user: User
-  }
-}
-
-interface SetupResponse {
-  success: boolean
-  message: string
-  data?: {
-    user: User
-  }
-}
-
 export const useAuth = () => {
+  const user = useState<User | null>('auth:user', () => null)
   const isLoading = ref(false)
 
-  const login = async (credentials: { email: string; password: string }) => {
-    console.log('=== useAuth.login called ===')
-    console.log('Credentials:', credentials)
-    
-    isLoading.value = true
+  // Load from localStorage once on client mount (optimistic)
+  if (process.client) {
+    onMounted(() => {
+      const stored = localStorage.getItem('user')
+      if (stored) {
+        try {
+          user.value = JSON.parse(stored)
+        } catch {
+          localStorage.removeItem('user')
+        }
+      }
+    })
+  }
 
+  const login = async (credentials: { email: string; password: string }) => {
+    isLoading.value = true
     try {
-      console.log('Making login request...')
-      
-      const response = await $fetch<LoginResponse>('/api/auth/login', {
+      const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>('/api/auth/login', {
         method: 'POST',
         body: credentials,
         credentials: 'include'
       })
 
-      console.log('Login response:', response)
-      return response
-      
-    } catch (error) {
-      console.error('Login error in composable:', error)
-      throw error
-    } finally {
-      isLoading.value = false
-    }
-  }
+      if (res.success && res.data?.user) {
+        const u = res.data.user
+        user.value = u
 
-  const setupAdmin = async (data: { name: string; email: string; password: string }) => {
-    console.log('=== useAuth.setupAdmin called ===')
-    console.log('Setup data:', data)
-    
-    isLoading.value = true
+        if (process.client) {
+          localStorage.setItem('user', JSON.stringify(u))
+        }
 
-    try {
-      console.log('Making setup request...')
-      
-      const response = await $fetch<SetupResponse>('/api/auth/create-super-user', {
-        method: 'POST',
-        body: data,
-        credentials: 'include'
-      })
+        // Navigate based on role
+        const target = ['SuperAdmin', 'Admin'].includes(u.role) ? '/dashboard' : '/'
+        await navigateTo(target)
 
-      console.log('Setup response:', response)
-      return response
-      
-    } catch (error) {
-      console.error('Setup error in composable:', error)
-      throw error
+        return res
+      }
+
+      throw new Error(res.message || 'Login failed')
+    } catch (err: any) {
+      console.error('Login error:', err)
+      throw err
     } finally {
       isLoading.value = false
     }
   }
 
   const logout = async () => {
-    console.log('=== useAuth.logout called ===')
-    
     isLoading.value = true
-
     try {
-      const response = await $fetch('/api/auth/logout', {
+      await $fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include'
       })
 
-      console.log('Logout response:', response)
-      return response
-      
-    } catch (error) {
-      console.error('Logout error in composable:', error)
-      throw error
+      user.value = null
+
+      if (process.client) {
+        localStorage.removeItem('user')
+      }
+
+      await navigateTo('/login')
+    } catch (err) {
+      console.error('Logout failed:', err)
     } finally {
       isLoading.value = false
     }
   }
 
   return {
+    user: readonly(user),
     isLoading: readonly(isLoading),
     login,
-    setupAdmin,
     logout
   }
 }

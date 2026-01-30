@@ -14,15 +14,12 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {useAuth} from '~/composables/useAuth';
 
 const route = useRoute();
 const sidebarCollapsed = useState('sidebar-collapsed', () => false);
 
-const user = ref<{
-  name: string;
-  email: string;
-  role: string;
-} | null>(null);
+const { user } = useAuth()
 
 const getInitials = (name: string): string => {
   return name
@@ -46,23 +43,6 @@ const canAccess = (requiredRole: string): boolean => {
   return true;
 };
 
-onMounted(() => {
-  if (process.client) {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        user.value = JSON.parse(storedUser);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
-    }
-
-    const savedState = localStorage.getItem('sidebar-collapsed');
-    if (savedState !== null) {
-      sidebarCollapsed.value = savedState === 'true';
-    }
-  }
-});
 </script>
 
 <template>

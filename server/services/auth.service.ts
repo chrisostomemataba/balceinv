@@ -280,4 +280,31 @@ export class AuthService {
       return null; 
     }
   }
+
+  static async getCurrentUser(event: H3Event): Promise<ServiceResponse<UserData>> {
+  const payload = this.getUserFromToken(event);
+  if (!payload) {
+    throw createError({ statusCode: 401, message: 'Not authenticated' });
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(tables.users.id, payload.userId),
+    with: { role: true }
+  });
+
+  if (!user) {
+    throw createError({ statusCode: 404, message: 'User not found' });
+  }
+
+  return {
+    success: true,
+    message: 'Current user',
+    data: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role.name
+    }
+  };
+}
 }
