@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Minus, Trash2, Search, Barcode, ShoppingCart, CreditCard, Smartphone, Banknote, X } from 'lucide-vue-next';
+import { Plus, Minus, Trash2, Search, Barcode, ShoppingCart, CreditCard, Smartphone, Banknote, X, Pause, Play } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,9 +35,17 @@ interface CartItem {
   availableStock: number;
 }
 
+// Paused cart interface for saving cart state
+interface PausedCart {
+  id: string;
+  items: CartItem[];
+  timestamp: Date;
+}
+
 const { products, fetchProducts } = useProducts();
 const { createSale, loading } = useSales();
 
+// POS state
 const barcodeInput = ref('');
 const searchQuery = ref('');
 const cart = ref<CartItem[]>([]);
@@ -45,6 +53,19 @@ const showCheckoutDialog = ref(false);
 const showSuccessDialog = ref(false);
 const paymentType = ref<'cash' | 'card' | 'mobile'>('cash');
 const lastReceipt = ref('');
+
+// Pause/Resume state
+const pausedCarts = ref<PausedCart[]>([]);
+const showPausedCartsDialog = ref(false);
+
+// Change calculation state
+const amountPaid = ref<number>(0);
+const change = computed(() => {
+  if (paymentType.value === 'cash' && amountPaid.value > 0) {
+    return Math.max(0, amountPaid.value - total.value);
+  }
+  return 0;
+});
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-TZ', {
@@ -56,6 +77,7 @@ const formatCurrency = (value: number): string => {
 
 onMounted(async () => {
   await fetchProducts();
+  loadPausedCarts(); // Load any paused carts from localStorage
 });
 
 const filteredProducts = computed(() => {
@@ -84,12 +106,14 @@ const totalItems = computed(() => {
   return cart.value.reduce((sum, item) => sum + item.quantity, 0);
 });
 
+// Handle barcode input
 const handleBarcodeInput = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const barcode = input.value.trim();
   
   if (!barcode) return;
 
+  // Find product by barcode or SKU
   const product = products.value.find(p => 
     p.barcode === barcode || p.sku === barcode
   );
@@ -102,7 +126,9 @@ const handleBarcodeInput = async (event: Event) => {
   }
 };
 
+// Add product to cart
 const addToCart = (product: any) => {
+  // Check if product is in stock
   if (product.quantity <= 0) {
     toast.error('Product out of stock');
     return;
@@ -111,16 +137,19 @@ const addToCart = (product: any) => {
   const existingItem = cart.value.find(item => item.productId === product.id);
 
   if (existingItem) {
+    // Check stock before incrementing
     if (existingItem.quantity >= product.quantity) {
       toast.error('Insufficient stock');
       return;
     }
     existingItem.quantity++;
     
+    // Check if should apply wholesale pricing
     const shouldBeWholesale = product.wholesalePrice && 
                              existingItem.quantity >= (product.wholesaleMin || 10);
     existingItem.isWholesale = shouldBeWholesale;
   } else {
+    // Add new item to cart
     cart.value.push({
       productId: product.id,
       name: product.name,
@@ -137,6 +166,7 @@ const addToCart = (product: any) => {
   searchQuery.value = '';
 };
 
+// Update quantity of cart item
 const updateQuantity = (item: CartItem, change: number) => {
   const newQuantity = item.quantity + change;
 
@@ -152,11 +182,13 @@ const updateQuantity = (item: CartItem, change: number) => {
 
   item.quantity = newQuantity;
   
+  // Update wholesale status
   const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
 };
 
+// Set quantity directly (from input)
 const setQuantity = (item: CartItem, value: string) => {
   const quantity = parseInt(value);
   
@@ -172,28 +204,129 @@ const setQuantity = (item: CartItem, value: string) => {
 
   item.quantity = quantity;
   
+  // Update wholesale status
   const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
 };
 
+// Remove item from cart
 const removeFromCart = (item: CartItem) => {
   cart.value = cart.value.filter(cartItem => cartItem.productId !== item.productId);
 };
 
+// Clear entire cart
 const clearCart = () => {
   cart.value = [];
+  amountPaid.value = 0;
 };
 
+// PAUSE/RESUME FEATURE
+// Pause current cart (customer goes back to shelf)
+const pauseCart = () => {
+  if (cart.value.length === 0) {
+    toast.error('Cart is empty');
+    return;
+  }
+
+  const pausedCart: PausedCart = {
+    id: `PAUSE-${Date.now()}`,
+    items: [...cart.value], // Clone the cart
+    timestamp: new Date(),
+  };
+
+  pausedCarts.value.push(pausedCart);
+  savePausedCarts(); // Save to localStorage
+  
+  clearCart();
+  toast.success('Cart paused successfully');
+};
+
+// Resume a paused cart
+const resumeCart = (pausedCart: PausedCart) => {
+  // If current cart has items, ask to pause it first
+  if (cart.value.length > 0) {
+    toast.error('Please pause or clear current cart first');
+    return;
+  }
+
+  cart.value = [...pausedCart.items]; // Restore the cart
+  pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
+  savePausedCarts();
+  showPausedCartsDialog.value = false;
+  toast.success('Cart resumed');
+};
+
+// Delete a paused cart
+const deletePausedCart = (pausedCart: PausedCart) => {
+  pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
+  savePausedCarts();
+  toast.success('Paused cart deleted');
+};
+
+// Save paused carts to localStorage
+const savePausedCarts = () => {
+  if (process.client) {
+    localStorage.setItem('pausedCarts', JSON.stringify(pausedCarts.value));
+  }
+};
+
+// Load paused carts from localStorage
+const loadPausedCarts = () => {
+  if (process.client) {
+    const saved = localStorage.getItem('pausedCarts');
+    if (saved) {
+      try {
+        pausedCarts.value = JSON.parse(saved);
+      } catch (error) {
+        console.error('Error loading paused carts:', error);
+      }
+    }
+  }
+};
+
+// Format time for paused carts
+const formatPausedTime = (date: Date): string => {
+  const now = new Date();
+  const diff = now.getTime() - new Date(date).getTime();
+  const minutes = Math.floor(diff / 60000);
+  
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(date).toLocaleDateString();
+};
+
+// Open checkout dialog
 const openCheckout = () => {
   if (cart.value.length === 0) {
     toast.error('Cart is empty');
     return;
   }
+  
+  // For cash, pre-fill with exact amount
+  if (paymentType.value === 'cash') {
+    amountPaid.value = total.value;
+  }
+  
   showCheckoutDialog.value = true;
 };
 
+// Process checkout
 const processCheckout = async () => {
+  // Validate cash payment
+  if (paymentType.value === 'cash') {
+    if (!amountPaid.value || amountPaid.value <= 0) {
+      toast.error('Please enter amount paid');
+      return;
+    }
+    if (amountPaid.value < total.value) {
+      toast.error(`Insufficient payment. Required: ${formatCurrency(total.value)}`);
+      return;
+    }
+  }
+
   try {
     const saleItems = cart.value.map(item => ({
       productId: item.productId,
@@ -205,7 +338,8 @@ const processCheckout = async () => {
       items: saleItems,
       paymentType: paymentType.value,
       saleType: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
-      useEFD: true
+      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined, // Include amount paid for cash
+      useEFD: true // Always send to EFD if enabled
     });
 
     if (result) {
@@ -219,31 +353,57 @@ const processCheckout = async () => {
   }
 };
 
+// Handle success dialog close
 const handleSuccessClose = () => {
   showSuccessDialog.value = false;
   lastReceipt.value = '';
 };
+
+// Watch payment type to reset amount paid
+watch(paymentType, (newType) => {
+  if (newType === 'cash') {
+    amountPaid.value = total.value;
+  } else {
+    amountPaid.value = 0;
+  }
+});
 </script>
 
 <template>
   <div class="h-screen flex flex-col bg-background">
+    <!-- Header -->
     <div class="border-b p-4">
       <div class="container mx-auto flex justify-between items-center">
         <h1 class="text-2xl font-bold">Point of Sale</h1>
-        <Button variant="outline" @click="$router.push('/sales')">
-          View Sales
-        </Button>
+        <div class="flex gap-2">
+          <!-- Paused Carts Button -->
+          <Button 
+            v-if="pausedCarts.length > 0" 
+            variant="outline" 
+            @click="showPausedCartsDialog = true"
+          >
+            <Play class="mr-2 h-4 w-4" />
+            Resume ({{ pausedCarts.length }})
+          </Button>
+          <Button variant="outline" @click="$router.push('/sales')">
+            View Sales
+          </Button>
+        </div>
       </div>
     </div>
 
+    <!-- Main Content -->
     <div class="flex-1 overflow-hidden">
       <div class="container mx-auto h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Left Side: Products & Cart -->
         <div class="lg:col-span-2 space-y-4">
+          <!-- Search Card -->
           <Card>
             <CardHeader>
               <CardTitle class="text-lg">Scan or Search Product</CardTitle>
             </CardHeader>
             <CardContent class="space-y-3">
+              <!-- Barcode Input -->
               <div class="relative">
                 <Barcode class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -254,6 +414,7 @@ const handleSuccessClose = () => {
                 />
               </div>
 
+              <!-- Product Search -->
               <div class="relative">
                 <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -261,6 +422,7 @@ const handleSuccessClose = () => {
                   placeholder="Search products by name..."
                   class="pl-10"
                 />
+                <!-- Search Results Dropdown -->
                 <div v-if="filteredProducts.length > 0" class="absolute w-full mt-1 bg-popover border rounded-md shadow-lg z-10">
                   <div
                     v-for="product in filteredProducts"
@@ -284,30 +446,47 @@ const handleSuccessClose = () => {
             </CardContent>
           </Card>
 
+          <!-- Cart Card -->
           <Card class="flex-1">
             <CardHeader>
               <div class="flex justify-between items-center">
                 <CardTitle>Cart ({{ totalItems }} items)</CardTitle>
-                <Button v-if="cart.length > 0" variant="ghost" size="sm" @click="clearCart">
-                  <X class="h-4 w-4 mr-2" />
-                  Clear
-                </Button>
+                <div class="flex gap-2">
+                  <!-- Pause Button -->
+                  <Button 
+                    v-if="cart.length > 0" 
+                    variant="outline" 
+                    size="sm" 
+                    @click="pauseCart"
+                  >
+                    <Pause class="h-4 w-4 mr-2" />
+                    Pause
+                  </Button>
+                  <!-- Clear Button -->
+                  <Button v-if="cart.length > 0" variant="ghost" size="sm" @click="clearCart">
+                    <X class="h-4 w-4 mr-2" />
+                    Clear
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <ScrollArea class="h-[400px]">
+                <!-- Empty Cart State -->
                 <div v-if="cart.length === 0" class="text-center py-12 text-muted-foreground">
                   <ShoppingCart class="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Cart is empty</p>
                   <p class="text-sm mt-1">Scan or search for products to add</p>
                 </div>
 
+                <!-- Cart Items -->
                 <div v-else class="space-y-3">
                   <div
                     v-for="item in cart"
                     :key="item.productId"
                     class="flex items-center gap-3 p-3 border rounded-lg"
                   >
+                    <!-- Product Info -->
                     <div class="flex-1">
                       <p class="font-medium">{{ item.name }}</p>
                       <p class="text-sm text-muted-foreground">{{ item.sku }}</p>
@@ -319,6 +498,7 @@ const handleSuccessClose = () => {
                       </div>
                     </div>
 
+                    <!-- Quantity Controls -->
                     <div class="flex items-center gap-2">
                       <Button variant="outline" size="icon" @click="updateQuantity(item, -1)">
                         <Minus class="h-4 w-4" />
@@ -335,12 +515,14 @@ const handleSuccessClose = () => {
                       </Button>
                     </div>
 
+                    <!-- Item Total -->
                     <div class="text-right">
                       <p class="font-bold">
                         {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) * item.quantity) }}
                       </p>
                     </div>
 
+                    <!-- Remove Button -->
                     <Button variant="ghost" size="icon" @click="removeFromCart(item)">
                       <Trash2 class="h-4 w-4 text-destructive" />
                     </Button>
@@ -351,7 +533,9 @@ const handleSuccessClose = () => {
           </Card>
         </div>
 
+        <!-- Right Side: Summary & Actions -->
         <div class="space-y-4">
+          <!-- Order Summary -->
           <Card>
             <CardHeader>
               <CardTitle>Order Summary</CardTitle>
@@ -377,6 +561,7 @@ const handleSuccessClose = () => {
             </CardContent>
           </Card>
 
+          <!-- Quick Actions (Number Pad) -->
           <Card>
             <CardHeader>
               <CardTitle class="text-sm">Quick Actions</CardTitle>
@@ -426,6 +611,7 @@ const handleSuccessClose = () => {
       </div>
     </div>
 
+    <!-- Checkout Dialog -->
     <Dialog v-model:open="showCheckoutDialog">
       <DialogContent>
         <DialogHeader>
@@ -435,6 +621,7 @@ const handleSuccessClose = () => {
           </DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-4">
+          <!-- Payment Method -->
           <div class="space-y-2">
             <p class="text-sm font-medium">Payment Method</p>
             <Select v-model="paymentType">
@@ -464,8 +651,28 @@ const handleSuccessClose = () => {
             </Select>
           </div>
 
+          <!-- Amount Paid (for cash only) -->
+          <div v-if="paymentType === 'cash'" class="space-y-2">
+            <p class="text-sm font-medium">Amount Paid</p>
+            <Input
+              v-model.number="amountPaid"
+              type="number"
+              placeholder="Enter amount paid"
+              :min="total"
+              step="100"
+            />
+            <!-- Change Display -->
+            <div v-if="amountPaid > 0" class="flex justify-between text-sm">
+              <span class="text-muted-foreground">Change:</span>
+              <span :class="change < 0 ? 'text-destructive font-bold' : 'text-green-600 font-bold'">
+                {{ formatCurrency(change) }}
+              </span>
+            </div>
+          </div>
+
           <Separator />
 
+          <!-- Total Summary -->
           <div class="space-y-2">
             <div class="flex justify-between">
               <span>Total Amount</span>
@@ -483,6 +690,7 @@ const handleSuccessClose = () => {
       </DialogContent>
     </Dialog>
 
+    <!-- Success Dialog -->
     <Dialog v-model:open="showSuccessDialog">
       <DialogContent>
         <DialogHeader>
@@ -507,6 +715,57 @@ const handleSuccessClose = () => {
             New Sale
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Paused Carts Dialog -->
+    <Dialog v-model:open="showPausedCartsDialog">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Paused Carts</DialogTitle>
+          <DialogDescription>
+            Resume a paused cart or delete it
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea class="max-h-[400px]">
+          <div class="space-y-3 p-4">
+            <div
+              v-for="pausedCart in pausedCarts"
+              :key="pausedCart.id"
+              class="border rounded-lg p-4"
+            >
+              <div class="flex justify-between items-start mb-3">
+                <div>
+                  <p class="font-medium">{{ pausedCart.items.length }} items</p>
+                  <p class="text-sm text-muted-foreground">{{ formatPausedTime(pausedCart.timestamp) }}</p>
+                </div>
+                <div class="flex gap-2">
+                  <Button size="sm" @click="resumeCart(pausedCart)">
+                    <Play class="h-4 w-4 mr-1" />
+                    Resume
+                  </Button>
+                  <Button size="sm" variant="ghost" @click="deletePausedCart(pausedCart)">
+                    <Trash2 class="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <!-- Show first 3 items -->
+              <div class="space-y-1">
+                <div
+                  v-for="item in pausedCart.items.slice(0, 3)"
+                  :key="item.productId"
+                  class="text-sm flex justify-between"
+                >
+                  <span>{{ item.name }} x{{ item.quantity }}</span>
+                  <span class="font-medium">{{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) * item.quantity) }}</span>
+                </div>
+                <p v-if="pausedCart.items.length > 3" class="text-xs text-muted-foreground">
+                  +{{ pausedCart.items.length - 3 }} more items
+                </p>
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   </div>

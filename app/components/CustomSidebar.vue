@@ -8,7 +8,8 @@ import {
   BarChart3,
   Bell,
   Settings,
-  TrendingUp
+  TrendingUp,
+  FileText
 } from 'lucide-vue-next';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -189,6 +190,18 @@ onMounted(() => {
           >
             <Shield class="h-4 w-4 shrink-0" :class="{ 'mr-3': !sidebarCollapsed }" />
             <span v-if="!sidebarCollapsed" class="text-sm font-medium">Roles</span>
+          </NuxtLink>
+
+          <NuxtLink
+            to="/reports"
+            :class="[
+              'w-full flex items-center rounded-md hover:bg-accent transition-colors h-10',
+              sidebarCollapsed ? 'justify-center px-2' : 'justify-start px-3',
+              isActive('/reports') ? 'bg-accent' : ''
+            ]"
+          >
+            <FileText class="h-4 w-4 shrink-0" :class="{ 'mr-3': !sidebarCollapsed }" />
+            <span v-if="!sidebarCollapsed" class="text-sm font-medium">Reports</span>
           </NuxtLink>
 
           <NuxtLink

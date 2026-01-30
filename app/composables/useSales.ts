@@ -15,16 +15,20 @@ interface Sale {
   saleType: string;
   taxAmount: number;
   createdAt: Date;
+  change?: number;
   items?: Array<{
     id: number;
+    saleId: number;
     productId: number;
     quantity: number;
     unitPrice: number;
     totalPrice: number;
     isWholesale: boolean;
-    product?: {
+    product: {
+      id: number;
       name: string;
-      sku: string;
+      price: number;
+      wholesalePrice?: number;
     };
   }>;
   user?: {
@@ -39,6 +43,7 @@ interface CreateSaleInput {
   saleType?: 'retail' | 'wholesale';
   taxAmount?: number;
   useEFD?: boolean;
+  amountPaid?: number; // Amount customer paid (for cash payments)
 }
 
 interface SalesFilters {
@@ -82,6 +87,7 @@ interface FetchError {
 export const useSales = () => {
   const sales = ref<Sale[]>([]);
   const loading = ref<boolean>(false);
+  const error = ref<string | null>(null);
   const selectedSale = ref<Sale | null>(null);
   const dailySummary = ref<DailySalesSummary | null>(null);
   const monthlySummary = ref<MonthlySalesSummary | null>(null);
@@ -131,21 +137,38 @@ export const useSales = () => {
     }
   };
 
-  const createSale = async (saleData: CreateSaleInput): Promise<Sale | undefined> => {
+  const createSale = async (data: CreateSaleInput): Promise<Sale | undefined> => {
     loading.value = true;
+    error.value = null;
+
     try {
       const response = await $fetch<ApiResponse<Sale>>('/api/sales', {
         method: 'POST',
-        body: saleData
+        body: data,
       });
-      
-      sales.value.unshift(response.data);
-      toast.success(response.message);
-      return response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to create sale');
-      throw error;
+
+      if (response.success) {
+        sales.value.unshift(response.data);
+        
+        // Show success message with change info if applicable
+        if (data.paymentType === 'cash' && response.data.change && response.data.change > 0) {
+          toast.success('Sale completed', {
+            description: `Change: TZS ${response.data.change.toLocaleString()}`,
+          });
+        } else {
+          toast.success(response.message);
+        }
+
+        return response.data;
+      }
+    } catch (err: unknown) {
+      const fetchError = err as FetchError;
+      error.value = fetchError.data?.message || 'Failed to create sale';
+      toast.error('Sale failed', {
+        description: fetchError.data?.message || 'Please try again',
+      });
+      console.error('Error creating sale:', err);
+      throw err;
     } finally {
       loading.value = false;
     }
