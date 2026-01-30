@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Menu, Bell } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { Menu, Bell, Volume2, VolumeX } from 'lucide-vue-next';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +12,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+
+// Import notification composable
+const {
+  notificationCount,
+  unreadNotifications,
+  hasUnread,
+  soundEnabled,
+  fetchNotificationCount,
+  markAsSeen,
+  toggleSound,
+  loadSoundSetting,
+} = useNotifications();
 
 const sidebarCollapsed = useState('sidebar-collapsed', () => false);
 
@@ -19,7 +40,8 @@ const user = ref<{
   role: string;
 } | null>(null);
 
-const notificationCount = ref(0);
+const showNotificationPopover = ref(false);
+const notificationInterval = ref<NodeJS.Timeout | null>(null);
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -49,6 +71,70 @@ const handleLogout = async () => {
   }
 };
 
+/**
+ * Format notification time
+ */
+const formatNotificationTime = (date: Date): string => {
+  const now = new Date();
+  const notifDate = new Date(date);
+  const diffMs = now.getTime() - notifDate.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  
+  return notifDate.toLocaleDateString();
+};
+
+/**
+ * Get notification message
+ */
+const getNotificationMessage = (notification: any): string => {
+  if (notification.alertType === 'out') {
+    return `${notification.productName} is out of stock`;
+  }
+  return `${notification.productName} is low (${notification.currentQuantity} left)`;
+};
+
+/**
+ * Handle notification click
+ */
+const handleNotificationClick = async (notification: any) => {
+  await markAsSeen(notification.id);
+  showNotificationPopover.value = false;
+  navigateTo(`/products/${notification.productId}`);
+};
+
+/**
+ * View all notifications
+ */
+const viewAllNotifications = () => {
+  showNotificationPopover.value = false;
+  navigateTo('/notifications');
+};
+
+/**
+ * Setup notification polling
+ */
+const setupNotificationPolling = () => {
+  // Check for new notifications every 30 seconds
+  notificationInterval.value = setInterval(() => {
+    fetchNotificationCount();
+  }, 30000);
+};
+
+/**
+ * Clear notification polling
+ */
+const clearNotificationPolling = () => {
+  if (notificationInterval.value) {
+    clearInterval(notificationInterval.value);
+    notificationInterval.value = null;
+  }
+};
+
 onMounted(() => {
   if (process.client) {
     const storedUser = localStorage.getItem('user');
@@ -64,7 +150,16 @@ onMounted(() => {
     if (savedState !== null) {
       sidebarCollapsed.value = savedState === 'true';
     }
+
+    // Load notification settings and start polling
+    loadSoundSetting();
+    fetchNotificationCount();
+    setupNotificationPolling();
   }
+});
+
+onUnmounted(() => {
+  clearNotificationPolling();
 });
 </script>
 
@@ -74,7 +169,7 @@ onMounted(() => {
       <div class="flex items-center gap-3">
         <button 
           @click="toggleSidebar"
-          class="flex items-center justify-center h-9 w-9 rounded-md hover:bg-accent transition-colors flex-shrink-0"
+          class="flex items-center justify-center h-9 w-9 rounded-md hover:bg-accent transition-colors shrink-0"
         >
           <Menu class="h-5 w-5" />
         </button>
@@ -82,21 +177,106 @@ onMounted(() => {
         <h1 class="text-lg font-semibold hidden sm:block">POS System</h1>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button 
-          class="relative flex items-center justify-center h-9 w-9 rounded-md hover:bg-accent transition-colors"
-          @click="$router.push('/notifications')"
+      <div class="flex items-center gap-2">
+        <!-- Sound Toggle -->
+        <Button
+          variant="ghost"
+          size="icon"
+          @click="toggleSound"
+          :title="soundEnabled ? 'Mute notifications' : 'Unmute notifications'"
+          class="hidden sm:flex"
         >
-          <Bell class="h-5 w-5" />
-          <Badge 
-            v-if="notificationCount > 0" 
-            class="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-            variant="destructive"
-          >
-            {{ notificationCount }}
-          </Badge>
-        </button>
+          <Volume2 v-if="soundEnabled" class="h-5 w-5" />
+          <VolumeX v-else class="h-5 w-5" />
+        </Button>
+
+        <!-- Notifications Popover -->
+        <Popover v-model:open="showNotificationPopover">
+          <PopoverTrigger as-child>
+            <Button 
+              variant="ghost"
+              size="icon"
+              class="relative"
+            >
+              <Bell class="h-5 w-5" />
+              <Badge 
+                v-if="hasUnread" 
+                class="absolute -top-1 -right-1 h-5 min-w-[20px] flex items-center justify-center p-0 px-1 text-xs"
+                variant="destructive"
+              >
+                {{ notificationCount > 99 ? '99+' : notificationCount }}
+              </Badge>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="w-80 p-0" align="end">
+            <div class="flex items-center justify-between p-4">
+              <h4 class="font-semibold">Notifications</h4>
+              <Badge v-if="hasUnread" variant="secondary">
+                {{ notificationCount }} new
+              </Badge>
+            </div>
+            <Separator />
+            
+            <!-- Notification List -->
+            <ScrollArea class="h-[400px]">
+              <div v-if="unreadNotifications.length === 0" class="p-8 text-center">
+                <Bell class="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                <p class="text-sm text-muted-foreground">No new notifications</p>
+              </div>
+
+              <div v-else class="divide-y">
+                <button
+                  v-for="notification in unreadNotifications.slice(0, 5)"
+                  :key="notification.id"
+                  @click="handleNotificationClick(notification)"
+                  class="w-full p-4 text-left hover:bg-accent transition-colors"
+                >
+                  <div class="flex items-start gap-3">
+                    <div 
+                      class="rounded-full p-2 shrink-0 mt-1"
+                      :class="notification.alertType === 'out' ? 'bg-destructive/10' : 'bg-yellow-500/10'"
+                    >
+                      <Bell 
+                        class="h-4 w-4" 
+                        :class="notification.alertType === 'out' ? 'text-destructive' : 'text-yellow-600'"
+                      />
+                    </div>
+                    
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium mb-1 line-clamp-2">
+                        {{ getNotificationMessage(notification) }}
+                      </p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ formatNotificationTime(notification.createdAt) }}
+                      </p>
+                    </div>
+
+                    <Badge 
+                      variant="outline"
+                      class="shrink-0"
+                      :class="notification.alertType === 'out' ? 'border-destructive text-destructive' : 'border-yellow-600 text-yellow-600'"
+                    >
+                      {{ notification.alertType === 'out' ? 'Out' : 'Low' }}
+                    </Badge>
+                  </div>
+                </button>
+              </div>
+            </ScrollArea>
+
+            <Separator />
+            <div class="p-2">
+              <Button
+                variant="ghost"
+                class="w-full justify-center"
+                @click="viewAllNotifications"
+              >
+                View All Notifications
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
         
+        <!-- User Menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <button class="flex items-center gap-2 pl-3 border-l hover:bg-accent rounded-md px-2 py-1 transition-colors">
