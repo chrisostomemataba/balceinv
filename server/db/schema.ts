@@ -193,6 +193,59 @@ export const barcodes = sqliteTable('barcodes', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
 });
 
+// --- Settings Table ---
+export const settings = sqliteTable('settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  
+  // Business Settings
+  businessName: text('business_name'),
+  businessAddress: text('business_address'),
+  businessPhone: text('business_phone'),
+  businessTIN: text('business_tin'), // Tax Identification Number
+  receiptHeader: text('receipt_header'),
+  receiptFooter: text('receipt_footer'),
+  businessLogo: text('business_logo'), // Base64 or file path
+  
+  // Branding
+  primaryColor: text('primary_color').default('#3b82f6'), // Hex color
+  
+  // System Settings
+  taxRate: real('tax_rate').default(18.0), // Percentage
+  currency: text('currency').default('TZS'),
+  currencySymbol: text('currency_symbol').default('TZS'),
+  dateFormat: text('date_format').default('DD/MM/YYYY'), // or 'MM/DD/YYYY', 'YYYY-MM-DD'
+  receiptNumberFormat: text('receipt_number_format').default('SALE-{TIMESTAMP}-{COUNTER}'), // Format for receipt generation
+  
+  // EFD Settings (TRA Integration)
+  efdEnabled: integer('efd_enabled', { mode: 'boolean' }).default(false),
+  efdEndpoint: text('efd_endpoint'),
+  efdApiKey: text('efd_api_key'),
+  efdLastTestDate: integer('efd_last_test_date', { mode: 'timestamp' }),
+  efdTestStatus: text('efd_test_status'), // 'success', 'failed', 'pending'
+  
+  // Notification Settings
+  lowStockThreshold: integer('low_stock_threshold').default(5),
+  emailNotificationsEnabled: integer('email_notifications_enabled', { mode: 'boolean' }).default(false),
+  notificationEmail: text('notification_email'),
+  alertSoundEnabled: integer('alert_sound_enabled', { mode: 'boolean' }).default(true),
+  
+  // Alert Preferences
+  alertOnLowStock: integer('alert_on_low_stock', { mode: 'boolean' }).default(true),
+  alertOnOutOfStock: integer('alert_on_out_of_stock', { mode: 'boolean' }).default(true),
+  alertOnDeadStock: integer('alert_on_dead_stock', { mode: 'boolean' }).default(false),
+  deadStockDays: integer('dead_stock_days').default(30), // Days without sale to be considered dead stock
+  
+  // Receipt Settings
+  printReceiptAutomatically: integer('print_receipt_automatically', { mode: 'boolean' }).default(false),
+  showTaxOnReceipt: integer('show_tax_on_receipt', { mode: 'boolean' }).default(true),
+  showBarcodesOnReceipt: integer('show_barcodes_on_receipt', { mode: 'boolean' }).default(false),
+  
+  // Metadata
+  updatedBy: integer('updated_by').references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+});
+
 // --- Relations ---
 export const usersRelations = relations(users, ({ one, many }) => ({
   role: one(roles, { fields: [users.roleId], references: [roles.id] }),
@@ -223,7 +276,6 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
 export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
   user:    one(users,    { fields: [stockMovements.userId],    references: [users.id] }),
-  // optional
   sale:    one(sales,    { fields: [stockMovements.reference], references: [sales.receiptNumber] }), // if reference = receiptNumber
 }));
 
@@ -236,6 +288,10 @@ export const purchasesRelations = relations(purchases, ({ one, many }) => ({
 export const purchaseItemsRelations = relations(purchaseItems, ({ one }) => ({
   purchase: one(purchases, { fields: [purchaseItems.purchaseId], references: [purchases.id] }),
   product:  one(products,  { fields: [purchaseItems.productId],  references: [products.id] }),
+}));
+
+export const settingsRelations = relations(settings, ({ one }) => ({
+  updatedByUser: one(users, { fields: [settings.updatedBy], references: [users.id] })
 }));
 
 // Types
@@ -251,3 +307,4 @@ export type StockAlert = InferSelectModel<typeof stockAlerts>;
 export type Purchase = InferSelectModel<typeof purchases>;
 export type PurchaseItem = InferSelectModel<typeof purchaseItems>;
 export type Barcode = InferSelectModel<typeof barcodes>;
+export type Setting = InferSelectModel<typeof settings>;
