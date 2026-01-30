@@ -226,11 +226,10 @@ export const useReports = () => {
 
   const exportPDF = async (html: string, filename: string): Promise<void> => {
     try {
-      const response = await $fetch('/api/reports/export-pdf', {
+      const response = await $fetch<Uint8Array>('/api/reports/export-pdf', {
         method: 'POST',
-        body: { html, filename },
-        responseType: 'blob'
-      }) as Uint8Array;
+        body: { html, filename }
+      });
 
       const arrayBuffer = new ArrayBuffer(response.byteLength);
       new Uint8Array(arrayBuffer).set(response);
