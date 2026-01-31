@@ -137,35 +137,32 @@ export const useSales = () => {
     }
   };
 
-  const createSale = async (data: CreateSaleInput): Promise<Sale | undefined> => {
+  
+  /**
+   * Create a new sale
+   * Includes change calculation and receipt generation
+   */
+  const createSale = async (data: {
+    items: Array<{ productId: number; quantity: number; isWholesale?: boolean }>;
+    paymentType: 'cash' | 'card' | 'mobile';
+    saleType?: 'retail' | 'wholesale';
+    amountPaid?: number; // Amount customer paid (for cash payments)
+    useEFD?: boolean;
+  }) => {
     loading.value = true;
     error.value = null;
 
     try {
-      const response = await $fetch<ApiResponse<Sale>>('/api/sales', {
+      const response = await $fetch('/api/sales', {
         method: 'POST',
         body: data,
       });
 
-      if (response.success) {
-        sales.value.unshift(response.data);
-        
-        // Show success message with change info if applicable
-        if (data.paymentType === 'cash' && response.data.change && response.data.change > 0) {
-          toast.success('Sale completed', {
-            description: `Change: TZS ${response.data.change.toLocaleString()}`,
-          });
-        } else {
-          toast.success(response.message);
-        }
-
-        return response.data;
-      }
-    } catch (err: unknown) {
-      const fetchError = err as FetchError;
-      error.value = fetchError.data?.message || 'Failed to create sale';
+      return response;
+    } catch (err: any) {
+      error.value = err.message || 'Failed to create sale';
       toast.error('Sale failed', {
-        description: fetchError.data?.message || 'Please try again',
+        description: err.message || 'Please try again',
       });
       console.error('Error creating sale:', err);
       throw err;
@@ -285,6 +282,7 @@ export const useSales = () => {
     window.open(url, '_blank');
     toast.success('Sales report downloaded');
   };
+  
 
   return {
     sales,
