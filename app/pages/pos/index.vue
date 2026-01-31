@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Minus, Trash2, Search, Barcode, ShoppingCart, CreditCard, Smartphone, Banknote, X, Pause, Play } from 'lucide-vue-next';
+import { Plus, Minus, Trash2, Search, Barcode, ShoppingCart, CreditCard, Smartphone, Banknote, X, Pause, Play, Printer, Check } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,13 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -22,6 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface CartItem {
   productId: number;
@@ -35,7 +42,6 @@ interface CartItem {
   availableStock: number;
 }
 
-// Paused cart interface for saving cart state
 interface PausedCart {
   id: string;
   items: CartItem[];
@@ -49,37 +55,22 @@ const { createSale, loading } = useSales();
 const barcodeInput = ref('');
 const searchQuery = ref('');
 const cart = ref<CartItem[]>([]);
-const showCheckoutDialog = ref(false);
-const showSuccessDialog = ref(false);
 const paymentType = ref<'cash' | 'card' | 'mobile'>('cash');
-const lastReceipt = ref('');
-
-// Pause/Resume state
-const pausedCarts = ref<PausedCart[]>([]);
-const showPausedCartsDialog = ref(false);
-
-// Change calculation state
 const amountPaid = ref<number>(0);
-const change = computed(() => {
-  if (paymentType.value === 'cash' && amountPaid.value > 0) {
-    return Math.max(0, amountPaid.value - total.value);
-  }
-  return 0;
-});
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-TZ', {
-    style: 'currency',
-    currency: 'TZS',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
+// Paused carts state
+const pausedCarts = ref<PausedCart[]>([]);
+const showPausedCartsPopover = ref(false);
 
-onMounted(async () => {
-  await fetchProducts();
-  loadPausedCarts(); // Load any paused carts from localStorage
-});
+// Confirmation state
+const showConfirmDialog = ref(false);
 
+// Success state
+const lastReceipt = ref('');
+const lastChange = ref(0);
+const showingSuccess = ref(false);
+
+// Computed
 const filteredProducts = computed(() => {
   if (!searchQuery.value) return [];
   const query = searchQuery.value.toLowerCase();
@@ -106,6 +97,40 @@ const totalItems = computed(() => {
   return cart.value.reduce((sum, item) => sum + item.quantity, 0);
 });
 
+const change = computed(() => {
+  if (paymentType.value === 'cash' && amountPaid.value > 0) {
+    return Math.max(0, amountPaid.value - total.value);
+  }
+  return 0;
+});
+
+const canCheckout = computed(() => {
+  if (cart.value.length === 0) return false;
+  if (paymentType.value === 'cash') {
+    return amountPaid.value >= total.value;
+  }
+  return true;
+});
+
+// Format currency
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('en-TZ', {
+    style: 'currency',
+    currency: 'TZS',
+    minimumFractionDigits: 0,
+  }).format(value);
+};
+
+// Lifecycle
+onMounted(async () => {
+  await fetchProducts();
+  loadPausedCarts();
+  // Auto-focus amount paid for cash
+  if (paymentType.value === 'cash') {
+    amountPaid.value = 0;
+  }
+});
+
 // Handle barcode input
 const handleBarcodeInput = async (event: Event) => {
   const input = event.target as HTMLInputElement;
@@ -113,7 +138,6 @@ const handleBarcodeInput = async (event: Event) => {
   
   if (!barcode) return;
 
-  // Find product by barcode or SKU
   const product = products.value.find(p => 
     p.barcode === barcode || p.sku === barcode
   );
@@ -128,7 +152,6 @@ const handleBarcodeInput = async (event: Event) => {
 
 // Add product to cart
 const addToCart = (product: any) => {
-  // Check if product is in stock
   if (product.quantity <= 0) {
     toast.error('Product out of stock');
     return;
@@ -137,19 +160,16 @@ const addToCart = (product: any) => {
   const existingItem = cart.value.find(item => item.productId === product.id);
 
   if (existingItem) {
-    // Check stock before incrementing
     if (existingItem.quantity >= product.quantity) {
       toast.error('Insufficient stock');
       return;
     }
     existingItem.quantity++;
     
-    // Check if should apply wholesale pricing
     const shouldBeWholesale = product.wholesalePrice && 
                              existingItem.quantity >= (product.wholesaleMin || 10);
     existingItem.isWholesale = shouldBeWholesale;
   } else {
-    // Add new item to cart
     cart.value.push({
       productId: product.id,
       name: product.name,
@@ -164,9 +184,14 @@ const addToCart = (product: any) => {
   }
 
   searchQuery.value = '';
+  
+  // Auto-update amount paid for cash
+  if (paymentType.value === 'cash') {
+    amountPaid.value = total.value;
+  }
 };
 
-// Update quantity of cart item
+// Update quantity
 const updateQuantity = (item: CartItem, change: number) => {
   const newQuantity = item.quantity + change;
 
@@ -182,13 +207,17 @@ const updateQuantity = (item: CartItem, change: number) => {
 
   item.quantity = newQuantity;
   
-  // Update wholesale status
   const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
+  
+  // Auto-update amount paid for cash
+  if (paymentType.value === 'cash') {
+    amountPaid.value = total.value;
+  }
 };
 
-// Set quantity directly (from input)
+// Set quantity directly
 const setQuantity = (item: CartItem, value: string) => {
   const quantity = parseInt(value);
   
@@ -204,25 +233,34 @@ const setQuantity = (item: CartItem, value: string) => {
 
   item.quantity = quantity;
   
-  // Update wholesale status
   const shouldBeWholesale = Boolean(item.wholesalePrice && 
                            item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
+  
+  // Auto-update amount paid for cash
+  if (paymentType.value === 'cash') {
+    amountPaid.value = total.value;
+  }
 };
 
-// Remove item from cart
+// Remove from cart
 const removeFromCart = (item: CartItem) => {
   cart.value = cart.value.filter(cartItem => cartItem.productId !== item.productId);
+  
+  // Auto-update amount paid for cash
+  if (paymentType.value === 'cash' && cart.value.length > 0) {
+    amountPaid.value = total.value;
+  }
 };
 
-// Clear entire cart
+// Clear cart
 const clearCart = () => {
   cart.value = [];
   amountPaid.value = 0;
+  showingSuccess.value = false;
 };
 
-// PAUSE/RESUME FEATURE
-// Pause current cart (customer goes back to shelf)
+// Pause cart
 const pauseCart = () => {
   if (cart.value.length === 0) {
     toast.error('Cart is empty');
@@ -231,47 +269,51 @@ const pauseCart = () => {
 
   const pausedCart: PausedCart = {
     id: `PAUSE-${Date.now()}`,
-    items: [...cart.value], // Clone the cart
+    items: [...cart.value],
     timestamp: new Date(),
   };
 
   pausedCarts.value.push(pausedCart);
-  savePausedCarts(); // Save to localStorage
+  savePausedCarts();
   
   clearCart();
-  toast.success('Cart paused successfully');
+  toast.success('Cart paused');
 };
 
-// Resume a paused cart
+// Resume cart
 const resumeCart = (pausedCart: PausedCart) => {
-  // If current cart has items, ask to pause it first
   if (cart.value.length > 0) {
     toast.error('Please pause or clear current cart first');
     return;
   }
 
-  cart.value = [...pausedCart.items]; // Restore the cart
+  cart.value = [...pausedCart.items];
   pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
   savePausedCarts();
-  showPausedCartsDialog.value = false;
+  showPausedCartsPopover.value = false;
+  
+  // Auto-update amount paid for cash
+  if (paymentType.value === 'cash') {
+    amountPaid.value = total.value;
+  }
+  
   toast.success('Cart resumed');
 };
 
-// Delete a paused cart
+// Delete paused cart
 const deletePausedCart = (pausedCart: PausedCart) => {
   pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
   savePausedCarts();
   toast.success('Paused cart deleted');
 };
 
-// Save paused carts to localStorage
+// Save/load paused carts
 const savePausedCarts = () => {
   if (process.client) {
     localStorage.setItem('pausedCarts', JSON.stringify(pausedCarts.value));
   }
 };
 
-// Load paused carts from localStorage
 const loadPausedCarts = () => {
   if (process.client) {
     const saved = localStorage.getItem('pausedCarts');
@@ -285,7 +327,7 @@ const loadPausedCarts = () => {
   }
 };
 
-// Format time for paused carts
+// Format paused time
 const formatPausedTime = (date: Date): string => {
   const now = new Date();
   const diff = now.getTime() - new Date(date).getTime();
@@ -298,35 +340,24 @@ const formatPausedTime = (date: Date): string => {
   return new Date(date).toLocaleDateString();
 };
 
-// Open checkout dialog
-const openCheckout = () => {
-  if (cart.value.length === 0) {
-    toast.error('Cart is empty');
+// Open confirmation
+const openConfirmation = () => {
+  if (!canCheckout.value) {
+    if (cart.value.length === 0) {
+      toast.error('Cart is empty');
+    } else if (paymentType.value === 'cash' && amountPaid.value < total.value) {
+      toast.error('Insufficient payment amount');
+    }
     return;
   }
   
-  // For cash, pre-fill with exact amount
-  if (paymentType.value === 'cash') {
-    amountPaid.value = total.value;
-  }
-  
-  showCheckoutDialog.value = true;
+  showConfirmDialog.value = true;
 };
 
 // Process checkout
 const processCheckout = async () => {
-  // Validate cash payment
-  if (paymentType.value === 'cash') {
-    if (!amountPaid.value || amountPaid.value <= 0) {
-      toast.error('Please enter amount paid');
-      return;
-    }
-    if (amountPaid.value < total.value) {
-      toast.error(`Insufficient payment. Required: ${formatCurrency(total.value)}`);
-      return;
-    }
-  }
-
+  showConfirmDialog.value = false;
+  
   try {
     const saleItems = cart.value.map(item => ({
       productId: item.productId,
@@ -338,30 +369,52 @@ const processCheckout = async () => {
       items: saleItems,
       paymentType: paymentType.value,
       saleType: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
-      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined, // Include amount paid for cash
-      useEFD: true // Always send to EFD if enabled
+      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined,
+      useEFD: true
     });
 
     if (result) {
+      // Store receipt info
       lastReceipt.value = result.receiptNumber;
-      showCheckoutDialog.value = false;
-      showSuccessDialog.value = true;
-      clearCart();
+      lastChange.value = result.change || 0;
+      
+      // Show success state briefly
+      showingSuccess.value = true;
+      
+      // Show success toast with change
+      if (paymentType.value === 'cash' && lastChange.value > 0) {
+        toast.success('Sale completed!', {
+          description: `Change: ${formatCurrency(lastChange.value)}`,
+          duration: 5000,
+        });
+      } else {
+        toast.success('Sale completed!', {
+          description: `Receipt: ${lastReceipt.value}`,
+          duration: 3000,
+        });
+      }
+      
+      // Auto-clear after 3 seconds for next customer
+      setTimeout(() => {
+        clearCart();
+      }, 3000);
     }
   } catch (error) {
     console.error('Checkout failed:', error);
   }
 };
 
-// Handle success dialog close
-const handleSuccessClose = () => {
-  showSuccessDialog.value = false;
-  lastReceipt.value = '';
+// Print receipt
+const printReceipt = () => {
+  // This will trigger browser print dialog
+  // In production, you'd send to thermal printer
+  toast.success('Receipt sent to printer');
+  window.print();
 };
 
-// Watch payment type to reset amount paid
+// Watch payment type
 watch(paymentType, (newType) => {
-  if (newType === 'cash') {
+  if (newType === 'cash' && cart.value.length > 0) {
     amountPaid.value = total.value;
   } else {
     amountPaid.value = 0;
@@ -375,35 +428,23 @@ watch(paymentType, (newType) => {
     <div class="border-b p-4">
       <div class="container mx-auto flex justify-between items-center">
         <h1 class="text-2xl font-bold">Point of Sale</h1>
-        <div class="flex gap-2">
-          <!-- Paused Carts Button -->
-          <Button 
-            v-if="pausedCarts.length > 0" 
-            variant="outline" 
-            @click="showPausedCartsDialog = true"
-          >
-            <Play class="mr-2 h-4 w-4" />
-            Resume ({{ pausedCarts.length }})
-          </Button>
-          <Button variant="outline" @click="$router.push('/sales')">
-            View Sales
-          </Button>
-        </div>
+        <Button variant="outline" @click="$router.push('/sales')">
+          View Sales
+        </Button>
       </div>
     </div>
 
     <!-- Main Content -->
     <div class="flex-1 overflow-hidden">
       <div class="container mx-auto h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Left Side: Products & Cart -->
+        <!-- Left: Products & Cart -->
         <div class="lg:col-span-2 space-y-4">
-          <!-- Search Card -->
+          <!-- Search -->
           <Card>
             <CardHeader>
               <CardTitle class="text-lg">Scan or Search Product</CardTitle>
             </CardHeader>
             <CardContent class="space-y-3">
-              <!-- Barcode Input -->
               <div class="relative">
                 <Barcode class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -414,7 +455,6 @@ watch(paymentType, (newType) => {
                 />
               </div>
 
-              <!-- Product Search -->
               <div class="relative">
                 <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -422,7 +462,6 @@ watch(paymentType, (newType) => {
                   placeholder="Search products by name..."
                   class="pl-10"
                 />
-                <!-- Search Results Dropdown -->
                 <div v-if="filteredProducts.length > 0" class="absolute w-full mt-1 bg-popover border rounded-md shadow-lg z-10">
                   <div
                     v-for="product in filteredProducts"
@@ -446,13 +485,12 @@ watch(paymentType, (newType) => {
             </CardContent>
           </Card>
 
-          <!-- Cart Card -->
+          <!-- Cart -->
           <Card class="flex-1">
             <CardHeader>
               <div class="flex justify-between items-center">
                 <CardTitle>Cart ({{ totalItems }} items)</CardTitle>
                 <div class="flex gap-2">
-                  <!-- Pause Button -->
                   <Button 
                     v-if="cart.length > 0" 
                     variant="outline" 
@@ -462,7 +500,6 @@ watch(paymentType, (newType) => {
                     <Pause class="h-4 w-4 mr-2" />
                     Pause
                   </Button>
-                  <!-- Clear Button -->
                   <Button v-if="cart.length > 0" variant="ghost" size="sm" @click="clearCart">
                     <X class="h-4 w-4 mr-2" />
                     Clear
@@ -472,23 +509,43 @@ watch(paymentType, (newType) => {
             </CardHeader>
             <CardContent>
               <ScrollArea class="h-[400px]">
-                <!-- Empty Cart State -->
-                <div v-if="cart.length === 0" class="text-center py-12 text-muted-foreground">
+                <!-- Empty state -->
+                <div v-if="cart.length === 0 && !showingSuccess" class="text-center py-12 text-muted-foreground">
                   <ShoppingCart class="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Cart is empty</p>
                   <p class="text-sm mt-1">Scan or search for products to add</p>
                 </div>
 
-                <!-- Cart Items -->
+                <!-- Success state -->
+                <div v-else-if="showingSuccess" class="text-center py-12">
+                  <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check class="h-8 w-8 text-green-600" />
+                  </div>
+                  <h3 class="text-lg font-semibold mb-2">Sale Completed!</h3>
+                  <p class="text-sm text-muted-foreground mb-1">Receipt: {{ lastReceipt }}</p>
+                  <p v-if="lastChange > 0" class="text-lg font-bold text-green-600 mb-4">
+                    Change: {{ formatCurrency(lastChange) }}
+                  </p>
+                  <div class="flex gap-2 justify-center mt-4">
+                    <Button variant="outline" size="sm" @click="printReceipt">
+                      <Printer class="h-4 w-4 mr-2" />
+                      Print Receipt
+                    </Button>
+                    <Button size="sm" @click="clearCart">
+                      Next Customer
+                    </Button>
+                  </div>
+                </div>
+
+                <!-- Cart items -->
                 <div v-else class="space-y-3">
                   <div
                     v-for="item in cart"
                     :key="item.productId"
                     class="flex items-center gap-3 p-3 border rounded-lg"
                   >
-                    <!-- Product Info -->
-                    <div class="flex-1">
-                      <p class="font-medium">{{ item.name }}</p>
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium truncate">{{ item.name }}</p>
                       <p class="text-sm text-muted-foreground">{{ item.sku }}</p>
                       <div class="flex items-center gap-2 mt-1">
                         <p class="text-sm font-semibold">
@@ -498,7 +555,6 @@ watch(paymentType, (newType) => {
                       </div>
                     </div>
 
-                    <!-- Quantity Controls -->
                     <div class="flex items-center gap-2">
                       <Button variant="outline" size="icon" @click="updateQuantity(item, -1)">
                         <Minus class="h-4 w-4" />
@@ -515,14 +571,12 @@ watch(paymentType, (newType) => {
                       </Button>
                     </div>
 
-                    <!-- Item Total -->
-                    <div class="text-right">
+                    <div class="text-right min-w-[80px]">
                       <p class="font-bold">
                         {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) * item.quantity) }}
                       </p>
                     </div>
 
-                    <!-- Remove Button -->
                     <Button variant="ghost" size="icon" @click="removeFromCart(item)">
                       <Trash2 class="h-4 w-4 text-destructive" />
                     </Button>
@@ -533,240 +587,182 @@ watch(paymentType, (newType) => {
           </Card>
         </div>
 
-        <!-- Right Side: Summary & Actions -->
+        <!-- Right: Payment & Summary -->
         <div class="space-y-4">
-          <!-- Order Summary -->
+          <!-- Order Summary & Payment -->
           <Card>
             <CardHeader>
               <CardTitle>Order Summary</CardTitle>
             </CardHeader>
             <CardContent class="space-y-4">
+              <!-- Total -->
               <div class="space-y-2">
-                <div class="flex justify-between text-xl font-bold">
+                <div class="flex justify-between text-2xl font-bold">
                   <span>Total</span>
                   <span>{{ formatCurrency(total) }}</span>
                 </div>
                 <p class="text-xs text-muted-foreground text-center">* Price includes 18% VAT</p>
               </div>
 
+              <Separator />
+
+              <!-- Payment Method -->
+              <div class="space-y-2">
+                <p class="text-sm font-medium">Payment Method</p>
+                <Select v-model="paymentType">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">
+                      <div class="flex items-center gap-2">
+                        <Banknote class="h-4 w-4" />
+                        Cash
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="card">
+                      <div class="flex items-center gap-2">
+                        <CreditCard class="h-4 w-4" />
+                        Card
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="mobile">
+                      <div class="flex items-center gap-2">
+                        <Smartphone class="h-4 w-4" />
+                        Mobile Money
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <!-- Cash Payment -->
+              <div v-if="paymentType === 'cash'" class="space-y-2">
+                <p class="text-sm font-medium">Amount Paid</p>
+                <Input
+                  v-model.number="amountPaid"
+                  type="number"
+                  placeholder="Enter amount"
+                  :min="total"
+                  step="1000"
+                  class="text-lg"
+                />
+                <div v-if="amountPaid > 0" class="flex justify-between text-sm p-2 bg-muted rounded">
+                  <span class="text-muted-foreground">Change:</span>
+                  <span :class="change < 0 ? 'text-destructive font-bold' : 'text-green-600 font-bold text-lg'">
+                    {{ formatCurrency(change) }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Checkout Button -->
               <Button 
                 class="w-full" 
                 size="lg" 
-                :disabled="cart.length === 0 || loading"
-                @click="openCheckout"
+                :disabled="!canCheckout || loading"
+                @click="openConfirmation"
               >
                 <ShoppingCart class="mr-2 h-5 w-5" />
-                Checkout
+                {{ loading ? 'Processing...' : 'Complete Sale' }}
               </Button>
-            </CardContent>
-          </Card>
-
-          <!-- Quick Actions (Number Pad) -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-sm">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-2">
-              <div class="grid grid-cols-3 gap-2">
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">1</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">2</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">3</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">4</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">5</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">6</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">7</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">8</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">9</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">.</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">0</span>
-                </Button>
-                <Button variant="outline" size="sm" class="h-16 flex-col gap-1">
-                  <span class="text-2xl font-bold">←</span>
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
 
-    <!-- Checkout Dialog -->
-    <Dialog v-model:open="showCheckoutDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Complete Payment</DialogTitle>
-          <DialogDescription>
-            Select payment method and confirm the sale
-          </DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <!-- Payment Method -->
-          <div class="space-y-2">
-            <p class="text-sm font-medium">Payment Method</p>
-            <Select v-model="paymentType">
-              <SelectTrigger>
-                <SelectValue placeholder="Select payment method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cash">
-                  <div class="flex items-center gap-2">
-                    <Banknote class="h-4 w-4" />
-                    Cash
+    <!-- Floating Paused Carts Button -->
+    <Popover v-model:open="showPausedCartsPopover">
+      <PopoverTrigger as-child>
+        <Button
+          v-if="pausedCarts.length > 0"
+          class="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+          size="icon"
+        >
+          <div class="relative">
+            <Play class="h-6 w-6" />
+            <Badge class="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0" variant="destructive">
+              {{ pausedCarts.length }}
+            </Badge>
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent class="w-80" align="end" side="top">
+        <div class="space-y-2">
+          <h4 class="font-semibold">Paused Carts</h4>
+          <ScrollArea class="max-h-[300px]">
+            <div class="space-y-2">
+              <div
+                v-for="pausedCart in pausedCarts"
+                :key="pausedCart.id"
+                class="border rounded-lg p-3 space-y-2"
+              >
+                <div class="flex justify-between items-start">
+                  <div>
+                    <p class="font-medium">{{ pausedCart.items.length }} items</p>
+                    <p class="text-xs text-muted-foreground">{{ formatPausedTime(pausedCart.timestamp) }}</p>
                   </div>
-                </SelectItem>
-                <SelectItem value="card">
-                  <div class="flex items-center gap-2">
-                    <CreditCard class="h-4 w-4" />
-                    Card
+                  <div class="flex gap-1">
+                    <Button size="sm" variant="outline" @click="resumeCart(pausedCart)">
+                      <Play class="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" @click="deletePausedCart(pausedCart)">
+                      <Trash2 class="h-3 w-3" />
+                    </Button>
                   </div>
-                </SelectItem>
-                <SelectItem value="mobile">
-                  <div class="flex items-center gap-2">
-                    <Smartphone class="h-4 w-4" />
-                    Mobile Money
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- Amount Paid (for cash only) -->
-          <div v-if="paymentType === 'cash'" class="space-y-2">
-            <p class="text-sm font-medium">Amount Paid</p>
-            <Input
-              v-model.number="amountPaid"
-              type="number"
-              placeholder="Enter amount paid"
-              :min="total"
-              step="100"
-            />
-            <!-- Change Display -->
-            <div v-if="amountPaid > 0" class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Change:</span>
-              <span :class="change < 0 ? 'text-destructive font-bold' : 'text-green-600 font-bold'">
-                {{ formatCurrency(change) }}
-              </span>
-            </div>
-          </div>
-
-          <Separator />
-
-          <!-- Total Summary -->
-          <div class="space-y-2">
-            <div class="flex justify-between">
-              <span>Total Amount</span>
-              <span class="font-bold text-lg">{{ formatCurrency(total) }}</span>
-            </div>
-            <p class="text-xs text-muted-foreground">* Price includes 18% VAT</p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showCheckoutDialog = false">Cancel</Button>
-          <Button @click="processCheckout" :disabled="loading">
-            Confirm Payment
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Success Dialog -->
-    <Dialog v-model:open="showSuccessDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle class="text-center text-2xl text-green-600">Sale Completed!</DialogTitle>
-        </DialogHeader>
-        <div class="py-6 text-center space-y-4">
-          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-muted-foreground">Receipt Number</p>
-            <p class="font-mono font-bold text-lg">{{ lastReceipt }}</p>
-          </div>
-          <p class="text-sm text-muted-foreground">
-            Transaction has been recorded and sent to TRA
-          </p>
-        </div>
-        <DialogFooter>
-          <Button @click="handleSuccessClose" class="w-full">
-            New Sale
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Paused Carts Dialog -->
-    <Dialog v-model:open="showPausedCartsDialog">
-      <DialogContent class="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Paused Carts</DialogTitle>
-          <DialogDescription>
-            Resume a paused cart or delete it
-          </DialogDescription>
-        </DialogHeader>
-        <ScrollArea class="max-h-[400px]">
-          <div class="space-y-3 p-4">
-            <div
-              v-for="pausedCart in pausedCarts"
-              :key="pausedCart.id"
-              class="border rounded-lg p-4"
-            >
-              <div class="flex justify-between items-start mb-3">
-                <div>
-                  <p class="font-medium">{{ pausedCart.items.length }} items</p>
-                  <p class="text-sm text-muted-foreground">{{ formatPausedTime(pausedCart.timestamp) }}</p>
                 </div>
-                <div class="flex gap-2">
-                  <Button size="sm" @click="resumeCart(pausedCart)">
-                    <Play class="h-4 w-4 mr-1" />
-                    Resume
-                  </Button>
-                  <Button size="sm" variant="ghost" @click="deletePausedCart(pausedCart)">
-                    <Trash2 class="h-4 w-4" />
-                  </Button>
+                <div class="text-xs space-y-1">
+                  <div
+                    v-for="item in pausedCart.items.slice(0, 2)"
+                    :key="item.productId"
+                    class="flex justify-between"
+                  >
+                    <span class="truncate">{{ item.name }} x{{ item.quantity }}</span>
+                  </div>
+                  <p v-if="pausedCart.items.length > 2" class="text-muted-foreground">
+                    +{{ pausedCart.items.length - 2 }} more
+                  </p>
                 </div>
               </div>
-              <!-- Show first 3 items -->
-              <div class="space-y-1">
-                <div
-                  v-for="item in pausedCart.items.slice(0, 3)"
-                  :key="item.productId"
-                  class="text-sm flex justify-between"
-                >
-                  <span>{{ item.name }} x{{ item.quantity }}</span>
-                  <span class="font-medium">{{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) * item.quantity) }}</span>
-                </div>
-                <p v-if="pausedCart.items.length > 3" class="text-xs text-muted-foreground">
-                  +{{ pausedCart.items.length - 3 }} more items
-                </p>
+            </div>
+          </ScrollArea>
+        </div>
+      </PopoverContent>
+    </Popover>
+
+    <!-- Confirmation Dialog -->
+    <AlertDialog v-model:open="showConfirmDialog">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Sale</AlertDialogTitle>
+          <AlertDialogDescription>
+            <div class="space-y-2 mt-2">
+              <div class="flex justify-between">
+                <span>Total Amount:</span>
+                <span class="font-bold">{{ formatCurrency(total) }}</span>
+              </div>
+              <div v-if="paymentType === 'cash'" class="flex justify-between">
+                <span>Amount Paid:</span>
+                <span class="font-bold">{{ formatCurrency(amountPaid) }}</span>
+              </div>
+              <div v-if="paymentType === 'cash' && change > 0" class="flex justify-between text-green-600">
+                <span>Change:</span>
+                <span class="font-bold">{{ formatCurrency(change) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Payment:</span>
+                <span class="font-medium capitalize">{{ paymentType }}</span>
               </div>
             </div>
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="processCheckout" :disabled="loading">
+            Confirm
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
