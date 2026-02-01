@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Menu, Bell, Volume2, VolumeX } from 'lucide-vue-next';
+import { Icon } from '@iconify/vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,9 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+
+// Color mode
+const colorMode = useColorMode();
 
 // Import notification composable
 const {
@@ -178,6 +182,28 @@ onUnmounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Mode Toggle -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="icon">
+              <Icon icon="radix-icons:moon" class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Icon icon="radix-icons:sun" class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span class="sr-only">Toggle theme</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="colorMode.preference = 'light'">
+              Light
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="colorMode.preference = 'dark'">
+              Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="colorMode.preference = 'system'">
+              System
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <!-- Sound Toggle -->
         <Button
           variant="ghost"

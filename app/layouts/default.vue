@@ -27,4 +27,7 @@ const sidebarCollapsed = useState('sidebar-collapsed', () => false)
 
 import 'vue-sonner/style.css'
 import { Toaster } from '@/components/ui/sonner'
+definePageMeta({
+  middleware: 'permissions'
+})
 </script>
