@@ -15,6 +15,13 @@
       "when": 1769781118551,
       "tag": "0001_jazzy_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1769942587012,
+      "tag": "0002_peaceful_solo",
+      "breakpoints": true
     }
   ]
 }

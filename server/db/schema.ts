@@ -19,6 +19,30 @@ export const users = sqliteTable('users', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
 });
 
+export const permissions = sqliteTable('permissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').unique().notNull(),
+  resource: text('resource').notNull(),
+  action: text('action', { enum: ['view', 'create', 'edit', 'delete'] }).notNull(),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+});
+
+export const rolePermissions = sqliteTable('role_permissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  permissionId: integer('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+});
+
+export const userPermissions = sqliteTable('user_permissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  permissionId: integer('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+});
+
+
 export const sessions = sqliteTable('sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull().references(() => users.id),
@@ -255,6 +279,26 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   loginLogs: many(loginLogs), 
 }));
 
+export const rolesRelations = relations(roles, ({ many }) => ({
+  users: many(users),
+  rolePermissions: many(rolePermissions),
+}));
+
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+  userPermissions: many(userPermissions),
+}));
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(roles, { fields: [rolePermissions.roleId], references: [roles.id] }),
+  permission: one(permissions, { fields: [rolePermissions.permissionId], references: [permissions.id] }),
+}));
+
+export const userPermissionsRelations = relations(userPermissions, ({ one }) => ({
+  user: one(users, { fields: [userPermissions.userId], references: [users.id] }),
+  permission: one(permissions, { fields: [userPermissions.permissionId], references: [permissions.id] }),
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   saleItems: many(saleItems),
   stockMovements: many(stockMovements),
@@ -308,3 +352,6 @@ export type Purchase = InferSelectModel<typeof purchases>;
 export type PurchaseItem = InferSelectModel<typeof purchaseItems>;
 export type Barcode = InferSelectModel<typeof barcodes>;
 export type Setting = InferSelectModel<typeof settings>;
+export type Permission = InferSelectModel<typeof permissions>;
+export type RolePermission = InferSelectModel<typeof rolePermissions>;
+export type UserPermission = InferSelectModel<typeof userPermissions>;
