@@ -18,6 +18,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'vue-sonner';
+import { useAuth } from '~/composables/useAuth';
+import { usePermissions } from '~/composables/usePermissions';
+
+const { user } = useAuth();
+const { canCreate, fetchUserPermissions } = usePermissions();
 
 const { 
   sales, 
@@ -49,6 +54,9 @@ const formatCurrency = (value: number): string => {
 };
 
 onMounted(async () => {
+  if (user.value) {
+    await fetchUserPermissions(user.value.id);
+  }
   await fetchSales();
   await fetchMonthlySales();
   
@@ -129,7 +137,12 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button variant="outline" @click="showUploadDialog = true" :disabled="loading">
+        <Button 
+          v-if="canCreate('sales')"
+          variant="outline" 
+          @click="showUploadDialog = true" 
+          :disabled="loading"
+        >
           <Upload class="mr-2 h-4 w-4" />
           Import Sales
         </Button>
@@ -141,7 +154,10 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <FileSpreadsheet class="mr-2 h-4 w-4" />
           Export Report
         </Button>
-        <Button @click="$router.push('/pos')">
+        <Button 
+          v-if="canCreate('sales')"
+          @click="$router.push('/pos')"
+        >
           <ShoppingCart class="mr-2 h-4 w-4" />
           Go to POS
         </Button>

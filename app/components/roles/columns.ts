@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/vue-table';
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2, Users } from 'lucide-vue-next';
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2, Users, Shield } from 'lucide-vue-next';
 import { h } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -75,6 +75,15 @@ export const columns: ColumnDef<Role>[] = [
             }, () => [
               h(Pencil, { class: 'mr-2 h-4 w-4' }),
               'Edit'
+            ]),
+            h(DropdownMenuItem, {
+              onClick: () => {
+                const event = new CustomEvent('manage-permissions', { detail: role });
+                window.dispatchEvent(event);
+              }
+            }, () => [
+              h(Shield, { class: 'mr-2 h-4 w-4' }),
+              'Manage Permissions'
             ]),
             h(DropdownMenuItem, {
               onClick: () => {

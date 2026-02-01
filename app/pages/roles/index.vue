@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Users as UsersIcon } from 'lucide-vue-next';
+import { Plus, Users as UsersIcon, Shield } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { columns } from '@/components/roles/columns';
 import DataTable from '@/components/roles/DataTable.vue';
@@ -24,30 +24,44 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { usePermissions } from '@/composables/usePermissions';
 
-import { useRoles } from '@/composables/useRoles';
 const { roles, loading, fetchRoles, createRole, updateRole, deleteRole } = useRoles();
+const { 
+  permissions, 
+  groupByResource, 
+  fetchPermissions, 
+  fetchRolePermissions, 
+  assignPermissionsToRole 
+} = usePermissions();
 
 const showDialog = ref(false);
 const showDeleteDialog = ref(false);
 const showUsersDialog = ref(false);
+const showPermissionsDialog = ref(false);
 const isEditing = ref(false);
 const selectedRole = ref<any>(null);
 const roleName = ref('');
+const selectedPermissions = ref<number[]>([]);
 
 onMounted(async () => {
   await fetchRoles();
+  await fetchPermissions();
   
   window.addEventListener('edit-role', handleEdit);
   window.addEventListener('delete-role', handleDelete);
   window.addEventListener('view-users', handleViewUsers);
+  window.addEventListener('manage-permissions', handleManagePermissions);
 });
 
 onUnmounted(() => {
   window.removeEventListener('edit-role', handleEdit);
   window.removeEventListener('delete-role', handleDelete);
   window.removeEventListener('view-users', handleViewUsers);
+  window.removeEventListener('manage-permissions', handleManagePermissions);
 });
 
 const handleEdit = (event: any) => {
@@ -65,6 +79,13 @@ const handleDelete = (event: any) => {
 const handleViewUsers = (event: any) => {
   selectedRole.value = event.detail;
   showUsersDialog.value = true;
+};
+
+const handleManagePermissions = async (event: any) => {
+  selectedRole.value = event.detail;
+  const rolePermissions = await fetchRolePermissions(event.detail.id);
+  selectedPermissions.value = rolePermissions.map((p: any) => p.id);
+  showPermissionsDialog.value = true;
 };
 
 const openCreateDialog = () => {
@@ -103,6 +124,31 @@ const confirmDelete = async () => {
       console.error('Failed to delete role:', error);
     }
   }
+};
+
+const handleSavePermissions = async () => {
+  if (selectedRole.value) {
+    try {
+      await assignPermissionsToRole(selectedRole.value.id, selectedPermissions.value);
+      showPermissionsDialog.value = false;
+      selectedPermissions.value = [];
+    } catch (error) {
+      console.error('Failed to save permissions:', error);
+    }
+  }
+};
+
+const togglePermission = (permissionId: number) => {
+  const index = selectedPermissions.value.indexOf(permissionId);
+  if (index > -1) {
+    selectedPermissions.value.splice(index, 1);
+  } else {
+    selectedPermissions.value.push(permissionId);
+  }
+};
+
+const isPermissionSelected = (permissionId: number): boolean => {
+  return selectedPermissions.value.includes(permissionId);
 };
 </script>
 
@@ -200,6 +246,51 @@ const confirmDelete = async () => {
             No users assigned to this role
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="showPermissionsDialog">
+      <DialogContent class="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Shield class="h-5 w-5" />
+            Manage Permissions for {{ selectedRole?.name }}
+          </DialogTitle>
+          <DialogDescription>
+            Select the permissions this role should have
+          </DialogDescription>
+        </DialogHeader>
+        <div class="py-4 space-y-6">
+          <div v-for="(perms, resource) in groupByResource" :key="resource" class="space-y-3">
+            <h3 class="text-sm font-semibold uppercase text-muted-foreground">
+              {{ resource }}
+            </h3>
+            <Separator />
+            <div class="grid grid-cols-2 gap-4">
+              <div
+                v-for="permission in perms"
+                :key="permission.id"
+                class="flex items-center space-x-2"
+              >
+                <Checkbox
+                  :id="`permission-${permission.id}`"
+                  :checked="isPermissionSelected(permission.id)"
+                  @update:checked="togglePermission(permission.id)"
+                />
+                <Label
+                  :for="`permission-${permission.id}`"
+                  class="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {{ permission.action }}
+                </Label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showPermissionsDialog = false">Cancel</Button>
+          <Button @click="handleSavePermissions">Save Permissions</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   </div>
