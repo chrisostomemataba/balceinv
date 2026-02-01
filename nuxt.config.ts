@@ -11,5 +11,5 @@ export default defineNuxtConfig({
     ],
   },
 
-  modules: ["shadcn-nuxt"],
+  modules: ["shadcn-nuxt",'@nuxtjs/color-mode'],
 });
