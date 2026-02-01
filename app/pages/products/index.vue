@@ -28,6 +28,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '~/composables/useAuth';
+import { usePermissions } from '~/composables/usePermissions';
+
+const { user } = useAuth();
+const { canCreate, canEdit, canDelete, fetchUserPermissions } = usePermissions();
 
 const { 
   products, 
@@ -91,6 +96,9 @@ const handlePriceInput = (field: 'price' | 'costPrice' | 'wholesalePrice', event
 };
 
 onMounted(async () => {
+  if (user.value) {
+    await fetchUserPermissions(user.value.id);
+  }
   await fetchProducts();
   
   window.addEventListener('edit-product', handleEdit);
@@ -105,6 +113,11 @@ onUnmounted(() => {
 });
 
 const handleEdit = (event: any) => {
+  if (!canEdit('products')) {
+    toast.error('You do not have permission to edit products');
+    return;
+  }
+
   const product = event.detail;
   isEditing.value = true;
   formData.value = {
@@ -126,6 +139,11 @@ const handleEdit = (event: any) => {
 };
 
 const handleDelete = (event: any) => {
+  if (!canDelete('products')) {
+    toast.error('You do not have permission to delete products');
+    return;
+  }
+
   selectedProduct.value = event.detail;
   showDeleteDialog.value = true;
 };
@@ -137,6 +155,11 @@ const handleViewDetails = async (event: any) => {
 };
 
 const openCreateDialog = () => {
+  if (!canCreate('products')) {
+    toast.error('You do not have permission to create products');
+    return;
+  }
+
   isEditing.value = false;
   selectedProduct.value = null;
   formData.value = {
@@ -154,6 +177,15 @@ const openCreateDialog = () => {
     piecesPerUnit: '1',
   };
   showDialog.value = true;
+};
+
+const openUploadDialog = () => {
+  if (!canCreate('products')) {
+    toast.error('You do not have permission to upload products');
+    return;
+  }
+
+  showUploadDialog.value = true;
 };
 
 const parseCurrency = (value: string): number => {
@@ -183,8 +215,16 @@ const handleSubmit = async () => {
 
   try {
     if (isEditing.value && selectedProduct.value) {
+      if (!canEdit('products')) {
+        toast.error('You do not have permission to edit products');
+        return;
+      }
       await updateProduct(selectedProduct.value.id, productData);
     } else {
+      if (!canCreate('products')) {
+        toast.error('You do not have permission to create products');
+        return;
+      }
       await createProduct(productData);
     }
     showDialog.value = false;
@@ -194,6 +234,11 @@ const handleSubmit = async () => {
 };
 
 const confirmDelete = async () => {
+  if (!canDelete('products')) {
+    toast.error('You do not have permission to delete products');
+    return;
+  }
+
   if (selectedProduct.value) {
     try {
       await deleteProduct(selectedProduct.value.id);
@@ -213,6 +258,11 @@ const handleFileUpload = (event: Event) => {
 };
 
 const handleUpload = async () => {
+  if (!canCreate('products')) {
+    toast.error('You do not have permission to upload products');
+    return;
+  }
+
   if (!uploadFile.value) {
     toast.error('Please select a file');
     return;
@@ -238,7 +288,12 @@ const handleUpload = async () => {
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button variant="outline" @click="showUploadDialog = true" :disabled="loading">
+        <Button 
+          v-if="canCreate('products')"
+          variant="outline" 
+          @click="openUploadDialog" 
+          :disabled="loading"
+        >
           <Upload class="mr-2 h-4 w-4" />
           Upload Excel
         </Button>
@@ -246,7 +301,11 @@ const handleUpload = async () => {
           <Download class="mr-2 h-4 w-4" />
           Template
         </Button>
-        <Button @click="openCreateDialog" :disabled="loading">
+        <Button 
+          v-if="canCreate('products')"
+          @click="openCreateDialog" 
+          :disabled="loading"
+        >
           <Plus class="mr-2 h-4 w-4" />
           Add Product
         </Button>

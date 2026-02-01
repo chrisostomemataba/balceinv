@@ -92,15 +92,15 @@ const table = useVueTable({
       </div>
       
       <Select
-        :model-value="(table.getColumn('category')?.getFilterValue() as string) ?? ''"
-        @update:model-value="table.getColumn('category')?.setFilterValue($event)"
+        :model-value="(table.getColumn('category')?.getFilterValue() as string) ?? 'all'"
+        @update:model-value="table.getColumn('category')?.setFilterValue($event === 'all' ? '' : $event)"
       >
         <SelectTrigger class="w-full sm:w-[200px]">
           <Filter class="mr-2 h-4 w-4" />
           <SelectValue placeholder="Filter by category" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">All Categories</SelectItem>
+          <SelectItem value="all">All Categories</SelectItem>
           <SelectItem v-for="category in categories" :key="category" :value="category">
             {{ category }}
           </SelectItem>
