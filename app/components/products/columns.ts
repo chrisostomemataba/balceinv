@@ -1,6 +1,6 @@
 import type { ColumnDef } from '@tanstack/vue-table';
 import { ArrowUpDown, MoreHorizontal, Pencil, Trash2, Eye, AlertTriangle } from 'lucide-vue-next';
-import { h } from 'vue';
+import { h, type RendererElement, type RendererNode } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { usePermissions } from '~/composables/usePermissions';
 
 interface Product {
   id: number;
@@ -103,6 +104,59 @@ export const columns: ColumnDef<Product>[] = [
     enableHiding: false,
     cell: ({ row }) => {
       const product = row.original;
+      const { canEdit, canDelete } = usePermissions();
+
+      // Build menu items based on permissions
+      const menuItems: globalThis.VNode<RendererNode, RendererElement, { [key: string]: any; }>[] = [];
+
+      // View Details is always available (read permission assumed if user can see the page)
+      menuItems.push(
+        h(DropdownMenuItem, {
+          onClick: () => {
+            const event = new CustomEvent('view-product', { detail: product });
+            window.dispatchEvent(event);
+          }
+        }, () => [
+          h(Eye, { class: 'mr-2 h-4 w-4' }),
+          'View Details'
+        ])
+      );
+
+      // Edit - only if user has edit permission
+      if (canEdit('products')) {
+        menuItems.push(
+          h(DropdownMenuItem, {
+            onClick: () => {
+              const event = new CustomEvent('edit-product', { detail: product });
+              window.dispatchEvent(event);
+            }
+          }, () => [
+            h(Pencil, { class: 'mr-2 h-4 w-4' }),
+            'Edit'
+          ])
+        );
+      }
+
+      // Add separator before delete if edit exists
+      if (canEdit('products') && canDelete('products')) {
+        menuItems.push(h(DropdownMenuSeparator));
+      }
+
+      // Delete - only if user has delete permission
+      if (canDelete('products')) {
+        menuItems.push(
+          h(DropdownMenuItem, {
+            class: 'text-destructive',
+            onClick: () => {
+              const event = new CustomEvent('delete-product', { detail: product });
+              window.dispatchEvent(event);
+            }
+          }, () => [
+            h(Trash2, { class: 'mr-2 h-4 w-4' }),
+            'Delete'
+          ])
+        );
+      }
 
       return h(DropdownMenu, null, {
         default: () => [
@@ -115,35 +169,7 @@ export const columns: ColumnDef<Product>[] = [
           h(DropdownMenuContent, { align: 'end' }, () => [
             h(DropdownMenuLabel, null, () => 'Actions'),
             h(DropdownMenuSeparator),
-            h(DropdownMenuItem, {
-              onClick: () => {
-                const event = new CustomEvent('view-product', { detail: product });
-                window.dispatchEvent(event);
-              }
-            }, () => [
-              h(Eye, { class: 'mr-2 h-4 w-4' }),
-              'View Details'
-            ]),
-            h(DropdownMenuItem, {
-              onClick: () => {
-                const event = new CustomEvent('edit-product', { detail: product });
-                window.dispatchEvent(event);
-              }
-            }, () => [
-              h(Pencil, { class: 'mr-2 h-4 w-4' }),
-              'Edit'
-            ]),
-            h(DropdownMenuSeparator),
-            h(DropdownMenuItem, {
-              class: 'text-destructive',
-              onClick: () => {
-                const event = new CustomEvent('delete-product', { detail: product });
-                window.dispatchEvent(event);
-              }
-            }, () => [
-              h(Trash2, { class: 'mr-2 h-4 w-4' }),
-              'Delete'
-            ]),
+            ...menuItems
           ])
         ]
       });
