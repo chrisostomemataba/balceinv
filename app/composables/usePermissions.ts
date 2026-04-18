@@ -1,154 +1,120 @@
-import { toast } from 'vue-sonner';
+import { toast } from 'vue-sonner'
 
 interface Permission {
-  id: number;
-  name: string;
-  resource: string;
-  action: 'view' | 'create' | 'edit' | 'delete';
-  description?: string;
+  id: number
+  name: string
+  resource: string
+  action: 'view' | 'create' | 'edit' | 'delete'
+  description?: string
 }
 
 interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
-interface FetchError {
-  data?: {
-    message?: string;
-  };
+  success: boolean
+  message: string
+  data: T
 }
 
 export const usePermissions = () => {
-  const permissions = ref<Permission[]>([]);
-  const userPermissions = ref<Permission[]>([]);
-  const loading = ref<boolean>(false);
+  const { public: { apiBase } } = useRuntimeConfig()
+
+  const permissions = ref<Permission[]>([])
+  const userPermissions = ref<Permission[]>([])
+  const loading = ref(false)
 
   const fetchPermissions = async (): Promise<void> => {
-    loading.value = true;
+    loading.value = true
     try {
-      const response = await $fetch<ApiResponse<Permission[]>>('/api/permissions');
-      permissions.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch permissions');
+      const res = await $fetch<ApiResponse<Permission[]>>(`${apiBase}/api/permissions`, {
+        credentials: 'include'
+      })
+      permissions.value = res.data
+    } catch (error: any) {
+      toast.error(error?.data?.message || 'Failed to fetch permissions')
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  };
+  }
 
   const fetchUserPermissions = async (userId: number): Promise<void> => {
-    loading.value = true;
+    loading.value = true
     try {
-      const response = await $fetch<ApiResponse<Permission[]>>(
-        `/api/permissions/user/${userId}`
-      );
-      userPermissions.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch user permissions');
+      const res = await $fetch<ApiResponse<Permission[]>>(`${apiBase}/api/permissions/user/${userId}`, {
+        credentials: 'include'
+      })
+      userPermissions.value = res.data
+    } catch (error: any) {
+      toast.error(error?.data?.message || 'Failed to fetch user permissions')
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  };
+  }
 
   const fetchRolePermissions = async (roleId: number): Promise<Permission[]> => {
-    loading.value = true;
+    loading.value = true
     try {
-      const response = await $fetch<ApiResponse<Permission[]>>(
-        `/api/permissions/role/${roleId}`
-      );
-      return response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch role permissions');
-      return [];
+      const res = await $fetch<ApiResponse<Permission[]>>(`${apiBase}/api/permissions/role/${roleId}`, {
+        credentials: 'include'
+      })
+      return res.data
+    } catch (error: any) {
+      toast.error(error?.data?.message || 'Failed to fetch role permissions')
+      return []
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  };
+  }
 
-  const assignPermissionsToRole = async (
-    roleId: number, 
-    permissionIds: number[]
-  ): Promise<void> => {
-    loading.value = true;
+  const assignPermissionsToRole = async (roleId: number, permissionIds: number[]): Promise<void> => {
+    loading.value = true
     try {
-      const response = await $fetch<ApiResponse<null>>(
-        '/api/permissions/assign-role',
-        {
-          method: 'POST',
-          body: { roleId, permissionIds },
-        }
-      );
-      toast.success(response.message);
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to assign permissions');
-      throw error;
+      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-role`, {
+        method: 'POST',
+        body: { roleId, permissionIds },
+        credentials: 'include'
+      })
+      toast.success(res.message)
+    } catch (error: any) {
+      toast.error(error?.data?.message || 'Failed to assign permissions')
+      throw error
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  };
+  }
 
-  const assignPermissionsToUser = async (
-    userId: number, 
-    permissionIds: number[]
-  ): Promise<void> => {
-    loading.value = true;
+  const assignPermissionsToUser = async (userId: number, permissionIds: number[]): Promise<void> => {
+    loading.value = true
     try {
-      const response = await $fetch<ApiResponse<null>>(
-        '/api/permissions/assign-user',
-        {
-          method: 'POST',
-          body: { userId, permissionIds },
-        }
-      );
-      toast.success(response.message);
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to assign permissions');
-      throw error;
+      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-user`, {
+        method: 'POST',
+        body: { userId, permissionIds },
+        credentials: 'include'
+      })
+      toast.success(res.message)
+    } catch (error: any) {
+      toast.error(error?.data?.message || 'Failed to assign permissions')
+      throw error
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  };
+  }
 
-  const hasPermission = (resource: string, action: string): boolean => {
-    return userPermissions.value.some(
-      p => p.resource === resource && p.action === action
-    );
-  };
+  const hasPermission = (resource: string, action: string): boolean =>
+    userPermissions.value.some(p => p.resource === resource && p.action === action)
 
-  const canView = (resource: string): boolean => {
-    return hasPermission(resource, 'view');
-  };
+  const canView = (resource: string): boolean => hasPermission(resource, 'view')
+  const canCreate = (resource: string): boolean => hasPermission(resource, 'create')
+  const canEdit = (resource: string): boolean => hasPermission(resource, 'edit')
+  const canDelete = (resource: string): boolean => hasPermission(resource, 'delete')
 
-  const canCreate = (resource: string): boolean => {
-    return hasPermission(resource, 'create');
-  };
-
-  const canEdit = (resource: string): boolean => {
-    return hasPermission(resource, 'edit');
-  };
-
-  const canDelete = (resource: string): boolean => {
-    return hasPermission(resource, 'delete');
-  };
 
   const groupByResource = computed(() => {
-    const grouped: Record<string, Permission[]> = {};
-    
-    permissions.value.forEach(permission => {
-      if (!grouped[permission.resource]) {
-        grouped[permission.resource] = [];
-      }
-      grouped[permission.resource]!.push(permission);
-    });
-    
-    return grouped;
-  });
+    const grouped: Record<string, Permission[]> = {}
+    permissions.value.forEach(p => {
+      if (!grouped[p.resource]) grouped[p.resource] = []
+      grouped[p.resource]!.push(p)
+    })
+    return grouped
+  })
 
   return {
     permissions,
@@ -164,6 +130,6 @@ export const usePermissions = () => {
     canView,
     canCreate,
     canEdit,
-    canDelete,
-  };
-};
+    canDelete
+  }
+}
