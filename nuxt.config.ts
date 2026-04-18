@@ -5,6 +5,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['./app/assets/css/main.css'],
 
+  runtimeConfig: {
+    public: {
+      // This becomes accessible anywhere in Vue as useRuntimeConfig().public.apiUrl
+      apiUrl: process.env.API_BASE_URL || 'http://localhost:8080'
+    }
+  },
+
   vite: {
     plugins: [
       tailwindcss() as any,
