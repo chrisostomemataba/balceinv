@@ -24,13 +24,13 @@ import { usePermissions } from '~/composables/usePermissions';
 const { user } = useAuth();
 const { canCreate, fetchUserPermissions } = usePermissions();
 
-const { 
-  sales, 
-  loading, 
-  selectedSale, 
-  monthlySummary, 
-  fetchSales, 
-  fetchSale, 
+const {
+  sales,
+  loading,
+  selectedSale,
+  monthlySummary,
+  fetchSales,
+  fetchSale,
   fetchMonthlySales,
   uploadSalesExcel,
   downloadTemplate,
@@ -59,24 +59,19 @@ onMounted(async () => {
   }
   await fetchSales();
   await fetchMonthlySales();
-  
-  window.addEventListener('view-sale', handleViewSale);
 });
 
-onUnmounted(() => {
-  window.removeEventListener('view-sale', handleViewSale);
-});
-
-const handleViewSale = async (event: any) => {
-  await fetchSale(event.detail.id);
+// ✅ FIX: Handle view-sale via direct emit from DataTable — no window listeners
+const handleViewSale = async (sale: any) => {
+  await fetchSale(sale.id);
   showDetailsDialog.value = true;
 };
 
 const handleDateFilter = async (startDate: Date | null, endDate: Date | null) => {
   if (startDate && endDate) {
     await fetchSales({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0]
     });
   } else {
     await fetchSales();
@@ -84,11 +79,11 @@ const handleDateFilter = async (startDate: Date | null, endDate: Date | null) =>
 };
 
 const handlePaymentFilter = async (paymentType: string) => {
-  await fetchSales({ paymentType });
+  await fetchSales({ payment_type: paymentType });
 };
 
 const handleTypeFilter = async (saleType: string) => {
-  await fetchSales({ saleType });
+  await fetchSales({ sale_type: saleType });
 };
 
 const handleFileUpload = (event: Event) => {
@@ -103,7 +98,6 @@ const handleUpload = async () => {
     toast.error('Please select a file');
     return;
   }
-
   try {
     await uploadSalesExcel(uploadFile.value);
     showUploadDialog.value = false;
@@ -121,10 +115,10 @@ const handleExport = () => {
   }
 };
 
-const totalRevenue = computed(() => monthlySummary.value?.totalRevenue || 0);
-const totalTransactions = computed(() => monthlySummary.value?.totalTransactions || 0);
-const averageTransaction = computed(() => monthlySummary.value?.averageTransaction || 0);
-const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
+const totalRevenue = computed(() => monthlySummary.value?.total_revenue || 0);
+const totalTransactions = computed(() => monthlySummary.value?.total_transactions || 0);
+const averageTransaction = computed(() => monthlySummary.value?.average_transaction || 0);
+const totalTax = computed(() => monthlySummary.value?.total_tax || 0);
 </script>
 
 <template>
@@ -132,15 +126,13 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Sales</h1>
-        <p class="text-muted-foreground mt-1">
-          View and manage sales transactions
-        </p>
+        <p class="text-muted-foreground mt-1">View and manage sales transactions</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button 
+        <Button
           v-if="canCreate('sales')"
-          variant="outline" 
-          @click="showUploadDialog = true" 
+          variant="outline"
+          @click="showUploadDialog = true"
           :disabled="loading"
         >
           <Upload class="mr-2 h-4 w-4" />
@@ -154,29 +146,22 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <FileSpreadsheet class="mr-2 h-4 w-4" />
           Export Report
         </Button>
-        <Button 
-          v-if="canCreate('sales')"
-          @click="$router.push('/pos')"
-        >
+        <Button v-if="canCreate('sales')" @click="$router.push('/pos')">
           <ShoppingCart class="mr-2 h-4 w-4" />
           Go to POS
         </Button>
       </div>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <!-- <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Total Revenue</CardTitle>
           <DollarSign class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-8 w-32" />
-          </div>
-          <div v-else class="text-2xl font-bold">
-            {{ formatCurrency(totalRevenue) }}
-          </div>
+          <div v-if="loading" class="space-y-2"><Skeleton class="h-8 w-32" /></div>
+          <div v-else class="text-2xl font-bold">{{ formatCurrency(totalRevenue) }}</div>
           <p class="text-xs text-muted-foreground mt-1">This month</p>
         </CardContent>
       </Card>
@@ -187,12 +172,8 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <Receipt class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-8 w-20" />
-          </div>
-          <div v-else class="text-2xl font-bold">
-            {{ totalTransactions }}
-          </div>
+          <div v-if="loading" class="space-y-2"><Skeleton class="h-8 w-20" /></div>
+          <div v-else class="text-2xl font-bold">{{ totalTransactions }}</div>
           <p class="text-xs text-muted-foreground mt-1">This month</p>
         </CardContent>
       </Card>
@@ -203,12 +184,8 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <TrendingUp class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-8 w-28" />
-          </div>
-          <div v-else class="text-2xl font-bold">
-            {{ formatCurrency(averageTransaction) }}
-          </div>
+          <div v-if="loading" class="space-y-2"><Skeleton class="h-8 w-28" /></div>
+          <div v-else class="text-2xl font-bold">{{ formatCurrency(averageTransaction) }}</div>
           <p class="text-xs text-muted-foreground mt-1">Per transaction</p>
         </CardContent>
       </Card>
@@ -219,16 +196,12 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <Receipt class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-8 w-28" />
-          </div>
-          <div v-else class="text-2xl font-bold">
-            {{ formatCurrency(totalTax) }}
-          </div>
+          <div v-if="loading" class="space-y-2"><Skeleton class="h-8 w-28" /></div>
+          <div v-else class="text-2xl font-bold">{{ formatCurrency(totalTax) }}</div>
           <p class="text-xs text-muted-foreground mt-1">This month</p>
         </CardContent>
       </Card>
-    </div>
+    </div> -->
 
     <Card>
       <CardHeader>
@@ -244,18 +217,16 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           </div>
           <div class="rounded-md border">
             <div class="p-4 space-y-3">
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
+              <Skeleton v-for="i in 5" :key="i" class="h-12 w-full" />
             </div>
           </div>
         </div>
-        <DataTable 
-          v-else 
-          :columns="columns" 
+
+        <DataTable
+          v-else
+          :columns="columns"
           :data="sales"
+          @view-sale="handleViewSale"
           @date-filter="handleDateFilter"
           @payment-filter="handlePaymentFilter"
           @type-filter="handleTypeFilter"
@@ -272,11 +243,11 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-muted-foreground">Receipt Number</p>
-              <p class="font-mono font-semibold">{{ selectedSale.receiptNumber }}</p>
+              <p class="font-mono font-semibold">{{ selectedSale.receipt_number }}</p>
             </div>
             <div>
               <p class="text-sm text-muted-foreground">Date</p>
-              <p class="font-medium">{{ new Date(selectedSale.createdAt).toLocaleString() }}</p>
+              <p class="font-medium">{{ new Date(selectedSale.created_at).toLocaleString() }}</p>
             </div>
           </div>
 
@@ -285,12 +256,12 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-muted-foreground">Payment Method</p>
-              <Badge class="mt-1">{{ selectedSale.paymentType }}</Badge>
+              <Badge class="mt-1">{{ selectedSale.payment_type }}</Badge>
             </div>
             <div>
               <p class="text-sm text-muted-foreground">Sale Type</p>
-              <Badge class="mt-1" :variant="selectedSale.saleType === 'wholesale' ? 'default' : 'secondary'">
-                {{ selectedSale.saleType }}
+              <Badge class="mt-1" :variant="selectedSale.sale_type === 'wholesale' ? 'default' : 'secondary'">
+                {{ selectedSale.sale_type }}
               </Badge>
             </div>
           </div>
@@ -300,19 +271,19 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <div>
             <p class="text-sm font-medium mb-3">Items Sold</p>
             <div class="space-y-2">
-              <div 
-                v-for="item in selectedSale.items" 
+              <div
+                v-for="item in selectedSale.items"
                 :key="item.id"
                 class="flex justify-between items-center p-3 border rounded-lg"
               >
                 <div class="flex-1">
                   <p class="font-medium">{{ item.product?.name }}</p>
                   <p class="text-sm text-muted-foreground">
-                    {{ item.quantity }} × {{ formatCurrency(item.unitPrice) }}
-                    <Badge v-if="item.isWholesale" variant="outline" class="ml-2">Wholesale</Badge>
+                    {{ item.quantity }} × {{ formatCurrency(item.unit_price) }}
+                    <Badge v-if="item.is_wholesale" variant="outline" class="ml-2">Wholesale</Badge>
                   </p>
                 </div>
-                <p class="font-semibold">{{ formatCurrency(item.totalPrice) }}</p>
+                <p class="font-semibold">{{ formatCurrency(item.total_price) }}</p>
               </div>
             </div>
           </div>
@@ -322,7 +293,7 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
               <span class="text-muted-foreground">Total</span>
-              <span class="font-semibold">{{ formatCurrency(selectedSale.totalAmount) }}</span>
+              <span class="font-semibold">{{ formatCurrency(selectedSale.total_amount) }}</span>
             </div>
             <p class="text-xs text-muted-foreground">* Price includes 18% VAT</p>
           </div>
@@ -341,12 +312,7 @@ const totalTax = computed(() => monthlySummary.value?.totalTax || 0);
         <div class="space-y-4 py-4">
           <div class="space-y-2">
             <Label for="file">Select Excel File</Label>
-            <Input 
-              id="file" 
-              type="file" 
-              accept=".xlsx,.xls"
-              @change="handleFileUpload"
-            />
+            <Input id="file" type="file" accept=".xlsx,.xls" @change="handleFileUpload" />
           </div>
           <div class="text-sm text-muted-foreground">
             <p>• Each receipt can have multiple items</p>

@@ -43,63 +43,57 @@ const emit = defineEmits<{
   (e: 'date-filter', startDate: Date | null, endDate: Date | null): void;
   (e: 'payment-filter', paymentType: string): void;
   (e: 'type-filter', saleType: string): void;
+  // ✅ FIX: emit view-sale directly instead of dispatching on window
+  (e: 'view-sale', sale: any): void;
 }>();
 
 const sorting = ref<SortingState>([]);
 const columnFilters = ref<ColumnFiltersState>([]);
 const dateRange = ref<{ start: DateValue | null; end: DateValue | null }>({
   start: null,
-  end: null
+  end: null,
 });
 const selectedPayment = ref<string>('all');
 const selectedType = ref<string>('all');
 
-// Computed properties for Calendar component
 const startDate = computed({
   get: () => dateRange.value.start || undefined,
-  set: (value) => { dateRange.value.start = value || null; }
+  set: (value) => { dateRange.value.start = value || null; },
 });
 
 const endDate = computed({
   get: () => dateRange.value.end || undefined,
-  set: (value) => { dateRange.value.end = value || null; }
+  set: (value) => { dateRange.value.end = value || null; },
 });
 
-// Helper function to convert DateValue to Date for emit
 const dateValueToDate = (dateValue: any): Date | null => {
   if (!dateValue) return null;
-  // Convert DateValue to Date using its toString method
   return new Date(dateValue.toString());
 };
 
+// ✅ FIX: columns need access to emit — pass it via provide so cell renderers can use it
+provide('view-sale-emit', (sale: any) => emit('view-sale', sale));
+
 const table = useVueTable({
-  get data() {
-    return props.data;
-  },
-  get columns() {
-    return props.columns;
-  },
+  get data() { return props.data; },
+  get columns() { return props.columns; },
   getCoreRowModel: getCoreRowModel(),
   getPaginationRowModel: getPaginationRowModel(),
   getSortedRowModel: getSortedRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   onSortingChange: (updaterOrValue) => {
-    sorting.value = typeof updaterOrValue === 'function' 
-      ? updaterOrValue(sorting.value) 
+    sorting.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(sorting.value)
       : updaterOrValue;
   },
   onColumnFiltersChange: (updaterOrValue) => {
-    columnFilters.value = typeof updaterOrValue === 'function' 
-      ? updaterOrValue(columnFilters.value) 
+    columnFilters.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(columnFilters.value)
       : updaterOrValue;
   },
   state: {
-    get sorting() {
-      return sorting.value;
-    },
-    get columnFilters() {
-      return columnFilters.value;
-    },
+    get sorting() { return sorting.value; },
+    get columnFilters() { return columnFilters.value; },
   },
 });
 
@@ -128,8 +122,8 @@ watch(selectedType, (value) => {
         <PopoverTrigger as-child>
           <Button variant="outline" class="justify-start text-left font-normal">
             <Calendar class="mr-2 h-4 w-4" />
-            {{ dateRange.start && dateRange.end 
-              ? `${dateValueToDate(dateRange.start)?.toLocaleDateString()} - ${dateValueToDate(dateRange.end)?.toLocaleDateString()}` 
+            {{ dateRange.start && dateRange.end
+              ? `${dateValueToDate(dateRange.start)?.toLocaleDateString()} - ${dateValueToDate(dateRange.end)?.toLocaleDateString()}`
               : 'Select date range' }}
           </Button>
         </PopoverTrigger>
@@ -150,7 +144,7 @@ watch(selectedType, (value) => {
           </div>
         </PopoverContent>
       </Popover>
-      
+
       <Select v-model="selectedPayment">
         <SelectTrigger class="w-full sm:w-[180px]">
           <Filter class="mr-2 h-4 w-4" />
