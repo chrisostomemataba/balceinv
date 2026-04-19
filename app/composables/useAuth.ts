@@ -1,4 +1,5 @@
-// composables/useAuth.ts
+import { toast } from 'vue-sonner'
+
 interface User {
   id: number
   name: string
@@ -26,16 +27,26 @@ export const useAuth = () => {
   const login = async (credentials: { email: string; password: string }) => {
     isLoading.value = true
     try {
-      const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(`${baseUrl}/api/auth/login`, {
-        method: 'POST',
-        body: credentials,
-        credentials: 'include'
-      })
+      const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
+        `${baseUrl}/api/auth/login`,
+        {
+          method: 'POST' as const,
+          body: credentials,
+          credentials: 'include'
+        }
+      )
 
       if (res.success && res.data?.user) {
         user.value = res.data.user
         if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
-        const target = ['SuperAdmin', 'Admin'].includes(res.data.user.role) ? '/dashboard' : '/'
+
+        toast.success('Welcome back!', {
+          description: `Logged in as ${res.data.user.name}`
+        })
+
+        const target = ['SuperAdmin', 'Admin'].includes(res.data.user.role)
+          ? '/dashboard'
+          : '/'
         await navigateTo(target)
         return res
       }
@@ -52,14 +63,20 @@ export const useAuth = () => {
     isLoading.value = true
     try {
       await $fetch(`${baseUrl}/api/auth/logout`, {
-        method: 'POST',
+        method: 'POST' as const,
         credentials: 'include'
       })
+
       user.value = null
       if (process.client) localStorage.removeItem('user')
+
+      toast.success('Signed out successfully')
       await navigateTo('/login')
-    } catch (err) {
-      console.error('Logout failed:', err)
+    } catch {
+      user.value = null
+      if (process.client) localStorage.removeItem('user')
+      toast.error('Sign out encountered an issue, but you have been logged out locally')
+      await navigateTo('/login')
     } finally {
       isLoading.value = false
     }
