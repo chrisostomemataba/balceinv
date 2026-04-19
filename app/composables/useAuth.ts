@@ -1,4 +1,3 @@
-// composables/useAuth.ts
 import { toast } from 'vue-sonner'
 
 interface User {
@@ -12,19 +11,17 @@ export const useAuth = () => {
   const config = useRuntimeConfig()
   const baseUrl = config.public.apiBase
 
-
-  const user = useState<User | null>('auth:user', () => {
-    if (process.client) {
-      const stored = localStorage.getItem('user')
-      if (stored) {
-        try { return JSON.parse(stored) }
-        catch { localStorage.removeItem('user') }
-      }
-    }
-    return null
-  })
+  const user = useState<User | null>('auth:user', () => null)
 
   const isLoading = ref(false)
+
+  if (process.client && !user.value) {
+    const stored = localStorage.getItem('user')
+    if (stored) {
+      try { user.value = JSON.parse(stored) }
+      catch { localStorage.removeItem('user') }
+    }
+  }
 
   const login = async (credentials: { email: string; password: string }) => {
     isLoading.value = true
@@ -69,7 +66,6 @@ export const useAuth = () => {
         credentials: 'include'
       })
     } catch {
-      // Even if the server call fails, clear local state
     } finally {
       user.value = null
       if (process.client) localStorage.removeItem('user')
@@ -78,7 +74,6 @@ export const useAuth = () => {
       await navigateTo('/login')
     }
   }
-
 
   const setupAdmin = async (values: { name: string; email: string; password: string }) => {
     isLoading.value = true
