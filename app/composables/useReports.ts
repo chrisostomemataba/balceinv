@@ -1,4 +1,5 @@
-import { toast } from 'vue-sonner';
+// composables/useReports.ts
+import { toast } from "vue-sonner";
 
 interface SalesSummary {
   totalSales: number;
@@ -39,11 +40,7 @@ interface InventoryReport {
     quantity: number;
     minStock: number;
   }>;
-  outOfStockItems: Array<{
-    id: number;
-    name: string;
-    sku: string;
-  }>;
+  outOfStockItems: Array<{ id: number; name: string; sku: string }>;
   deadStockItems: Array<{
     id: number;
     name: string;
@@ -79,14 +76,12 @@ interface ApiResponse<T> {
   data: T;
 }
 
-interface FetchError {
-  data?: {
-    message?: string;
-  };
-}
-
 export const useReports = () => {
-  const loading = ref<boolean>(false);
+  const {
+    public: { apiBase },
+  } = useRuntimeConfig();
+
+  const loading = ref(false);
   const salesSummary = ref<SalesSummary | null>(null);
   const topProducts = ref<TopProduct[]>([]);
   const salesByUser = ref<SalesByUser[]>([]);
@@ -94,42 +89,48 @@ export const useReports = () => {
   const financialReport = ref<FinancialReport | null>(null);
   const dailyTrend = ref<DailyTrend[]>([]);
 
+  const buildQuery = (dateRange?: DateRange) => {
+    const query = new URLSearchParams();
+    if (dateRange?.startDate) query.append("startDate", dateRange.startDate);
+    if (dateRange?.endDate) query.append("endDate", dateRange.endDate);
+    return query.toString();
+  };
+
   const fetchSalesSummary = async (dateRange?: DateRange): Promise<void> => {
     loading.value = true;
     try {
-      const query = new URLSearchParams();
-      if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-      if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-      
-      const url = query.toString() 
-        ? `/api/reports/sales-summary?${query.toString()}`
-        : '/api/reports/sales-summary';
-      
-      const response = await $fetch<ApiResponse<SalesSummary>>(url);
-      salesSummary.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch sales summary');
+      const qs = buildQuery(dateRange);
+      const url = qs
+        ? `${apiBase}/api/reports/sales-summary?${qs}`
+        : `${apiBase}/api/reports/sales-summary`;
+
+      const res = await $fetch<ApiResponse<SalesSummary>>(url, {
+        credentials: "include",
+      });
+      salesSummary.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch sales summary");
     } finally {
       loading.value = false;
     }
   };
 
-  const fetchTopProducts = async (dateRange?: DateRange, limit: number = 10): Promise<void> => {
+  const fetchTopProducts = async (
+    dateRange?: DateRange,
+    limit = 10,
+  ): Promise<void> => {
     loading.value = true;
     try {
-      const query = new URLSearchParams();
-      if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-      if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-      query.append('limit', limit.toString());
-      
-      const response = await $fetch<ApiResponse<TopProduct[]>>(
-        `/api/reports/top-products?${query.toString()}`
+      const qs = buildQuery(dateRange);
+      const query = qs ? `${qs}&limit=${limit}` : `limit=${limit}`;
+
+      const res = await $fetch<ApiResponse<TopProduct[]>>(
+        `${apiBase}/api/reports/top-products?${query}`,
+        { credentials: "include" },
       );
-      topProducts.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch top products');
+      topProducts.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch top products");
     } finally {
       loading.value = false;
     }
@@ -138,19 +139,17 @@ export const useReports = () => {
   const fetchSalesByUser = async (dateRange?: DateRange): Promise<void> => {
     loading.value = true;
     try {
-      const query = new URLSearchParams();
-      if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-      if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-      
-      const url = query.toString()
-        ? `/api/reports/sales-by-user?${query.toString()}`
-        : '/api/reports/sales-by-user';
-      
-      const response = await $fetch<ApiResponse<SalesByUser[]>>(url);
-      salesByUser.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch sales by user');
+      const qs = buildQuery(dateRange);
+      const url = qs
+        ? `${apiBase}/api/reports/sales-by-user?${qs}`
+        : `${apiBase}/api/reports/sales-by-user`;
+
+      const res = await $fetch<ApiResponse<SalesByUser[]>>(url, {
+        credentials: "include",
+      });
+      salesByUser.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch sales by user");
     } finally {
       loading.value = false;
     }
@@ -159,11 +158,13 @@ export const useReports = () => {
   const fetchInventoryReport = async (): Promise<void> => {
     loading.value = true;
     try {
-      const response = await $fetch<ApiResponse<InventoryReport>>('/api/reports/inventory');
-      inventoryReport.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch inventory report');
+      const res = await $fetch<ApiResponse<InventoryReport>>(
+        `${apiBase}/api/reports/inventory`,
+        { credentials: "include" },
+      );
+      inventoryReport.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch inventory report");
     } finally {
       loading.value = false;
     }
@@ -172,19 +173,17 @@ export const useReports = () => {
   const fetchFinancialReport = async (dateRange?: DateRange): Promise<void> => {
     loading.value = true;
     try {
-      const query = new URLSearchParams();
-      if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-      if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-      
-      const url = query.toString()
-        ? `/api/reports/financial?${query.toString()}`
-        : '/api/reports/financial';
-      
-      const response = await $fetch<ApiResponse<FinancialReport>>(url);
-      financialReport.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch financial report');
+      const qs = buildQuery(dateRange);
+      const url = qs
+        ? `${apiBase}/api/reports/financial?${qs}`
+        : `${apiBase}/api/reports/financial`;
+
+      const res = await $fetch<ApiResponse<FinancialReport>>(url, {
+        credentials: "include",
+      });
+      financialReport.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch financial report");
     } finally {
       loading.value = false;
     }
@@ -193,58 +192,55 @@ export const useReports = () => {
   const fetchDailyTrend = async (dateRange?: DateRange): Promise<void> => {
     loading.value = true;
     try {
-      const query = new URLSearchParams();
-      if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-      if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-      
-      const url = query.toString()
-        ? `/api/reports/daily-trend?${query.toString()}`
-        : '/api/reports/daily-trend';
-      
-      const response = await $fetch<ApiResponse<DailyTrend[]>>(url);
-      dailyTrend.value = response.data;
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to fetch daily trend');
+      const qs = buildQuery(dateRange);
+      const url = qs
+        ? `${apiBase}/api/reports/daily-trend?${qs}`
+        : `${apiBase}/api/reports/daily-trend`;
+
+      const res = await $fetch<ApiResponse<DailyTrend[]>>(url, {
+        credentials: "include",
+      });
+      dailyTrend.value = res.data;
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to fetch daily trend");
     } finally {
       loading.value = false;
     }
   };
 
   const exportExcel = (dateRange?: DateRange): void => {
-    const query = new URLSearchParams();
-    if (dateRange?.startDate) query.append('startDate', dateRange.startDate);
-    if (dateRange?.endDate) query.append('endDate', dateRange.endDate);
-    
-    const url = query.toString()
-      ? `/api/reports/export-excel?${query.toString()}`
-      : '/api/reports/export-excel';
-    
-    window.open(url, '_blank');
-    toast.success('Report downloaded');
+    const qs = buildQuery(dateRange);
+    const url = qs
+      ? `${apiBase}/api/reports/export-excel?${qs}`
+      : `${apiBase}/api/reports/export-excel`;
+
+    window.open(url, "_blank");
+    toast.success("Report downloaded");
   };
 
   const exportPDF = async (html: string, filename: string): Promise<void> => {
     try {
-      const response = await $fetch<Uint8Array>('/api/reports/export-pdf', {
-        method: 'POST',
-        body: { html, filename }
-      });
+      const response = await $fetch<Uint8Array>(
+        `${apiBase}/api/reports/export-pdf`,
+        {
+          method: "POST" as const,
+          body: { html, filename },
+          credentials: "include",
+        },
+      );
 
       const arrayBuffer = new ArrayBuffer(response.byteLength);
       new Uint8Array(arrayBuffer).set(response);
-      const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = filename;
       link.click();
       window.URL.revokeObjectURL(url);
-      
-      toast.success('PDF downloaded');
-    } catch (error: unknown) {
-      const fetchError = error as FetchError;
-      toast.error(fetchError.data?.message || 'Failed to generate PDF');
+      toast.success("PDF downloaded");
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to generate PDF");
     }
   };
 
@@ -263,6 +259,6 @@ export const useReports = () => {
     fetchFinancialReport,
     fetchDailyTrend,
     exportExcel,
-    exportPDF
+    exportPDF,
   };
 };
