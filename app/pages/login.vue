@@ -46,9 +46,8 @@ const onSubmit = form.handleSubmit(async (values) => {
 
 <template>
   <div class="root">
-    <!-- ── Left dark panel ── -->
+    <!-- Left dark panel -->
     <aside class="panel" :class="{ show: mounted }">
-      <!-- content pinned to center-left -->
       <div class="panel-content">
         <div class="wordmark">
           <div class="squares">
@@ -83,13 +82,12 @@ const onSubmit = form.handleSubmit(async (values) => {
 
       <p class="panel-foot">&copy; {{ new Date().getFullYear() }} BALCE · POS &amp; Inventory</p>
 
-      <!-- decorative rings -->
-      <div class="rings">
+      <div class="rings" aria-hidden="true">
         <div/><div/><div/>
       </div>
     </aside>
 
-    <!-- ── Right form panel ── -->
+    <!-- Right form panel -->
     <main class="form-side" :class="{ show: mounted }">
       <div class="form-box">
         <div class="form-head">
@@ -133,9 +131,10 @@ const onSubmit = form.handleSubmit(async (values) => {
             </FormItem>
           </FormField>
 
-          <Button type="submit" class="w-full" size="lg" :disabled="isLoading">
-            <span v-if="isLoading" class="spin"/>
-            {{ isLoading ? 'Signing in…' : 'Sign in' }}
+         <Button as-child>
+            <button type="submit" class="w-full h-11" :disabled="isLoading">
+              {{ isLoading ? 'Signing in...' : 'Sign in' }}
+            </button>
           </Button>
         </form>
 
@@ -152,30 +151,34 @@ const onSubmit = form.handleSubmit(async (values) => {
 </template>
 
 <style scoped>
-/* ── Root: true full-screen split ───────────── */
+/* ── Root ── safe: no overflow:hidden, no fixed */
 .root {
-  position: fixed;
-  inset: 0;
+  min-height: 100vh;
   display: flex;
-  overflow: hidden;
 }
 
-/* ── Left panel ─────────────────────────────── */
+/* ── Left panel ── */
 .panel {
   width: 42%;
   flex-shrink: 0;
-  background: #07090f;
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 4rem 3.5rem;
   overflow: hidden;
+  /* Light mode: clean dark navy */
+  background: #0d1117;
   opacity: 0;
   transform: translateX(-20px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
 .panel.show { opacity: 1; transform: translateX(0); }
+
+/* Dark mode: slightly lighter so it separates from the bg */
+:global(.dark) .panel {
+  background: #161b22;
+}
 
 .panel-content {
   position: relative;
@@ -195,7 +198,7 @@ const onSubmit = form.handleSubmit(async (values) => {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.22em;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255,255,255,0.88);
 }
 .squares {
   display: grid;
@@ -204,29 +207,25 @@ const onSubmit = form.handleSubmit(async (values) => {
   width: 22px;
   height: 22px;
 }
-.squares i {
-  display: block;
-  border-radius: 3px;
-  font-style: normal;
-}
+.squares i { display: block; border-radius: 3px; font-style: normal; }
 .s1 { background: #7bc83a; }
-.s2 { background: #5fa028; opacity: .78; }
-.s3 { background: #5fa028; opacity: .78; }
-.s4 { background: #3e7018; opacity: .44; }
+.s2 { background: #5fa028; opacity: .8; }
+.s3 { background: #5fa028; opacity: .8; }
+.s4 { background: #3e7018; opacity: .45; }
 
 /* Pitch */
 .pitch h1 {
-  font-size: clamp(1.9rem, 2.8vw, 2.4rem);
+  font-size: clamp(1.75rem, 2.5vw, 2.2rem);
   font-weight: 700;
-  line-height: 1.14;
-  letter-spacing: -0.035em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   color: #ffffff;
   margin: 0 0 1rem;
 }
 .pitch p {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   line-height: 1.75;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255,255,255,0.38);
   margin: 0;
   max-width: 300px;
 }
@@ -236,17 +235,12 @@ const onSubmit = form.handleSubmit(async (values) => {
   display: flex;
   align-items: center;
   gap: 1.4rem;
-  padding: 1.1rem 1.4rem;
+  padding: 1rem 1.35rem;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 10px;
 }
-.chip {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
+.chip { display: flex; flex-direction: column; gap: 3px; }
 .chip strong {
   font-size: 0.8rem;
   font-weight: 600;
@@ -265,25 +259,20 @@ const onSubmit = form.handleSubmit(async (values) => {
   flex-shrink: 0;
 }
 
-/* Footer text */
+/* Footer */
 .panel-foot {
   position: absolute;
   bottom: 2rem;
   left: 3.5rem;
   font-size: 0.68rem;
-  color: rgba(255,255,255,0.16);
-  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.18);
   z-index: 2;
   margin: 0;
+  letter-spacing: 0.02em;
 }
 
 /* Rings */
-.rings {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
+.rings { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .rings div {
   position: absolute;
   border-radius: 50%;
@@ -293,14 +282,14 @@ const onSubmit = form.handleSubmit(async (values) => {
 .rings div:nth-child(2) { width: 400px; height: 400px; bottom: -170px; right: -130px; }
 .rings div:nth-child(3) { width: 230px; height: 230px; bottom: -80px; right: -55px; border-color: rgba(123,200,58,0.1); }
 
-/* ── Right side ─────────────────────────────── */
+/* ── Right form side ── */
 .form-side {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 3rem 2rem;
   background: hsl(var(--background));
-  padding: 2rem;
   opacity: 0;
   transform: translateX(20px);
   transition: opacity 0.55s ease 0.1s, transform 0.55s ease 0.1s;
@@ -312,9 +301,7 @@ const onSubmit = form.handleSubmit(async (values) => {
   max-width: 340px;
 }
 
-.form-head {
-  margin-bottom: 2rem;
-}
+.form-head { margin-bottom: 2rem; }
 .form-head h2 {
   font-size: 1.6rem;
   font-weight: 700;
@@ -334,7 +321,6 @@ const onSubmit = form.handleSubmit(async (values) => {
   gap: 1.1rem;
 }
 
-/* password label row */
 .pw-label {
   display: flex;
   justify-content: space-between;
@@ -349,7 +335,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 }
 .ghost-link:hover { color: hsl(var(--foreground)); }
 
-/* or divider */
 .or-row {
   display: flex;
   align-items: center;
@@ -363,7 +348,6 @@ const onSubmit = form.handleSubmit(async (values) => {
   color: hsl(var(--muted-foreground));
 }
 
-/* Ghost button */
 .ghost-btn {
   display: flex;
   align-items: center;
@@ -380,7 +364,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 }
 .ghost-btn:hover { background: hsl(var(--accent)); }
 
-/* Spinner */
 .spin {
   display: inline-block;
   width: 13px;
@@ -394,7 +377,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 }
 @keyframes rot { to { transform: rotate(360deg); } }
 
-/* Mobile */
 @media (max-width: 840px) {
   .panel { display: none; }
   .form-side { padding: 2rem 1.5rem; }
