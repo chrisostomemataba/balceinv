@@ -3,198 +3,400 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card'
-import { 
-  FormControl, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 
-definePageMeta({
-  layout: 'auth'
-})
+definePageMeta({ layout: false })
 
 const formSchema = toTypedSchema(z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
-  password: z.string().min(1, 'Password is required').min(6, 'Password must be at least 6 characters')
+  password: z.string().min(1, 'Password is required').min(6, 'At least 6 characters')
 }))
 
 const { login, isLoading } = useAuth()
 const form = useForm({ validationSchema: formSchema })
+const mounted = ref(false)
+
+onMounted(() => setTimeout(() => { mounted.value = true }, 60))
 
 const onSubmit = form.handleSubmit(async (values) => {
   try {
     const response = await login(values)
     if (response.success && response.data?.user) {
       const { role, name } = response.data.user
-      toast.success('Welcome back!', { 
-        description: `Logged in as ${name}`,
-        duration: 4000
-      })
-      
-      if (role === 'SuperAdmin' || role === 'Admin') {
-        await navigateTo('/dashboard')
-      } else {
-        await navigateTo('/')
-      }
+      toast.success('Welcome back!', { description: `Signed in as ${name}` })
+      await navigateTo(role === 'SuperAdmin' || role === 'Admin' ? '/dashboard' : '/')
     }
   } catch (error: any) {
-    let message = 'Something went wrong'
-    if (error?.statusCode === 401) {
-      message = 'Invalid email or password'
-    } else if (error?.data?.message) {
-      message = error.data.message
-    }
-    toast.error('Login failed', { description: message })
+    toast.error('Sign in failed', {
+      description: error?.statusCode === 401
+        ? 'Invalid email or password'
+        : error?.data?.message || 'Something went wrong'
+    })
   }
 })
 </script>
 
 <template>
-  <div class="min-h-screen w-full grid lg:grid-cols-2">
-    <!-- Left side - Welcome / Branding -->
-    <div class="relative hidden lg:flex flex-col justify-between bg-linear-to-br from-slate-900 via-indigo-950 to-purple-950 p-10 text-white">
-      <!-- Background pattern (subtle) -->
-      <div class="absolute inset-0 opacity-10 pointer-events-none">
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_15%_50%,rgba(255,255,255,0.08)_0%,transparent_50%)]"></div>
-      </div>
-
-      <div>
-        <h1 class="text-4xl font-bold tracking-tight">POS<span class="text-indigo-400">.</span></h1>
-        <p class="mt-4 text-lg text-slate-300 max-w-md">
-          Modern point-of-sale system built for speed, simplicity, and scale.
-        </p>
-      </div>
-
-      <div class="space-y-6">
-        <div class="flex items-center gap-4">
-          <div class="h-12 w-12 rounded-full bg-indigo-500/20 flex items-center justify-center backdrop-blur-sm">
-            <span class="text-2xl">⚡</span>
+  <div class="root">
+    <!-- ── Left dark panel ── -->
+    <aside class="panel" :class="{ show: mounted }">
+      <!-- content pinned to center-left -->
+      <div class="panel-content">
+        <div class="wordmark">
+          <div class="squares">
+            <i class="s1"/><i class="s2"/>
+            <i class="s3"/><i class="s4"/>
           </div>
-          <div>
-            <p class="font-medium">Lightning Fast</p>
-            <p class="text-sm text-slate-400">Process sales in seconds</p>
-          </div>
+          <span>BALCE</span>
         </div>
 
-        <div class="flex items-center gap-4">
-          <div class="h-12 w-12 rounded-full bg-purple-500/20 flex items-center justify-center backdrop-blur-sm">
-            <span class="text-2xl">🔒</span>
-          </div>
-          <div>
-            <p class="font-medium">Secure & Reliable</p>
-            <p class="text-sm text-slate-400">Protected sessions & audit logs</p>
-          </div>
+        <div class="pitch">
+          <h1>The smarter way<br>to run your store.</h1>
+          <p>Inventory, sales, and reporting — unified. Built for businesses that demand clarity and speed.</p>
         </div>
 
-        <Separator class="bg-white/10 my-8" />
-
-        <p class="text-sm text-slate-400">
-          © {{ new Date().getFullYear() }} POS System • Made with ❤️ in Tanzania
-        </p>
+        <div class="chips">
+          <div class="chip">
+            <strong>Real-time</strong>
+            <span>Stock alerts</span>
+          </div>
+          <div class="chip-sep"/>
+          <div class="chip">
+            <strong>Multi-user</strong>
+            <span>Roles &amp; access</span>
+          </div>
+          <div class="chip-sep"/>
+          <div class="chip">
+            <strong>Analytics</strong>
+            <span>Sales reports</span>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- Right side - Login Form -->
-    <div class="flex items-center justify-center p-6 lg:p-10 bg-background">
-      <Card class="w-full max-w-md border-none shadow-2xl">
-        <CardHeader class="space-y-1 pb-6">
-          <CardTitle class="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
-          <CardDescription class="text-base">
-            Enter your credentials to continue
-          </CardDescription>
-        </CardHeader>
+      <p class="panel-foot">&copy; {{ new Date().getFullYear() }} BALCE · POS &amp; Inventory</p>
 
-        <form @submit="onSubmit">
-          <CardContent class="space-y-5">
-            <FormField v-slot="{ componentField }" name="email">
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="email" 
-                    placeholder="name@example.com" 
-                    autocomplete="email"
-                    :disabled="isLoading"
-                    class="h-11"
-                    v-bind="componentField" 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+      <!-- decorative rings -->
+      <div class="rings">
+        <div/><div/><div/>
+      </div>
+    </aside>
 
-            <FormField v-slot="{ componentField }" name="password">
-              <FormItem>
+    <!-- ── Right form panel ── -->
+    <main class="form-side" :class="{ show: mounted }">
+      <div class="form-box">
+        <div class="form-head">
+          <h2>Sign in</h2>
+          <p>Enter your credentials to continue</p>
+        </div>
+
+        <form @submit="onSubmit" class="fields">
+          <FormField v-slot="{ componentField }" name="email">
+            <FormItem>
+              <FormLabel>Email address</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="you@company.com"
+                  autocomplete="email"
+                  :disabled="isLoading"
+                  v-bind="componentField"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
+
+          <FormField v-slot="{ componentField }" name="password">
+            <FormItem>
+              <div class="pw-label">
                 <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    autocomplete="current-password"
-                    :disabled="isLoading"
-                    class="h-11"
-                    v-bind="componentField" 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+                <NuxtLink to="/forgot-password" class="ghost-link">Forgot password?</NuxtLink>
+              </div>
+              <FormControl>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autocomplete="current-password"
+                  :disabled="isLoading"
+                  v-bind="componentField"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
 
-            <div class="flex items-center justify-between text-sm">
-              <NuxtLink 
-                to="/forgot-password" 
-                class="text-primary hover:underline"
-              >
-                Forgot password?
-              </NuxtLink>
-            </div>
-          </CardContent>
-
-          <CardFooter class="flex flex-col space-y-4 pt-2">
-            <Button as-child>
-              <button 
-                type="submit" 
-                class="w-full h-11 text-base font-medium"
-                :disabled="isLoading"
-              >
-                {{ isLoading ? 'Signing in...' : 'Sign in' }}
-              </button>
-            </Button>
-
-            <div class="text-center text-sm text-muted-foreground">
-              First time here? 
-              <NuxtLink 
-                to="/admin-page" 
-                class="text-primary hover:underline font-medium"
-              >
-                Create Super User
-              </NuxtLink>
-            </div>
-          </CardFooter>
+          <Button type="submit" class="w-full" size="lg" :disabled="isLoading">
+            <span v-if="isLoading" class="spin"/>
+            {{ isLoading ? 'Signing in…' : 'Sign in' }}
+          </Button>
         </form>
-      </Card>
-    </div>
-  </div>
 
-  <!-- Make sure vue-sonner <Toaster /> is in your root layout or app.vue -->
+        <div class="or-row">
+          <span/><em>or</em><span/>
+        </div>
+
+        <NuxtLink to="/admin-page" class="ghost-btn">
+          Create Super User account
+        </NuxtLink>
+      </div>
+    </main>
+  </div>
 </template>
 
 <style scoped>
-/* Optional: subtle hover effect on links */
-a:hover {
-  text-decoration: underline;
+/* ── Root: true full-screen split ───────────── */
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Left panel ─────────────────────────────── */
+.panel {
+  width: 42%;
+  flex-shrink: 0;
+  background: #07090f;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 3.5rem;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.panel.show { opacity: 1; transform: translateX(0); }
+
+.panel-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+/* Wordmark */
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wordmark span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: rgba(255,255,255,0.85);
+}
+.squares {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  width: 22px;
+  height: 22px;
+}
+.squares i {
+  display: block;
+  border-radius: 3px;
+  font-style: normal;
+}
+.s1 { background: #7bc83a; }
+.s2 { background: #5fa028; opacity: .78; }
+.s3 { background: #5fa028; opacity: .78; }
+.s4 { background: #3e7018; opacity: .44; }
+
+/* Pitch */
+.pitch h1 {
+  font-size: clamp(1.9rem, 2.8vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.035em;
+  color: #ffffff;
+  margin: 0 0 1rem;
+}
+.pitch p {
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.36);
+  margin: 0;
+  max-width: 300px;
+}
+
+/* Chips */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  padding: 1.1rem 1.4rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+}
+.chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.chip strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+}
+.chip span {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.28);
+  white-space: nowrap;
+}
+.chip-sep {
+  width: 1px;
+  height: 28px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* Footer text */
+.panel-foot {
+  position: absolute;
+  bottom: 2rem;
+  left: 3.5rem;
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.16);
+  letter-spacing: 0.02em;
+  z-index: 2;
+  margin: 0;
+}
+
+/* Rings */
+.rings {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.rings div {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(123,200,58,0.06);
+}
+.rings div:nth-child(1) { width: 600px; height: 600px; bottom: -280px; right: -220px; }
+.rings div:nth-child(2) { width: 400px; height: 400px; bottom: -170px; right: -130px; }
+.rings div:nth-child(3) { width: 230px; height: 230px; bottom: -80px; right: -55px; border-color: rgba(123,200,58,0.1); }
+
+/* ── Right side ─────────────────────────────── */
+.form-side {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--background));
+  padding: 2rem;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.55s ease 0.1s, transform 0.55s ease 0.1s;
+}
+.form-side.show { opacity: 1; transform: translateX(0); }
+
+.form-box {
+  width: 100%;
+  max-width: 340px;
+}
+
+.form-head {
+  margin-bottom: 2rem;
+}
+.form-head h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: hsl(var(--foreground));
+  margin: 0 0 0.3rem;
+}
+.form-head p {
+  font-size: 0.84rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* password label row */
+.pw-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.ghost-link {
+  font-size: 0.74rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.ghost-link:hover { color: hsl(var(--foreground)); }
+
+/* or divider */
+.or-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+}
+.or-row span { flex: 1; height: 1px; background: hsl(var(--border)); }
+.or-row em {
+  font-size: 0.72rem;
+  font-style: normal;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Ghost button */
+.ghost-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid hsl(var(--border));
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.ghost-btn:hover { background: hsl(var(--accent)); }
+
+/* Spinner */
+.spin {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rot 0.5s linear infinite;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* Mobile */
+@media (max-width: 840px) {
+  .panel { display: none; }
+  .form-side { padding: 2rem 1.5rem; }
 }
 </style>
