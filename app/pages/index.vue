@@ -50,7 +50,7 @@ const isDark = ref(false)
 const steps = ['Initializing system...', 'Loading inventory...', 'Almost ready...']
 const loadingText = ref(steps[0])
 
-onMounted(() => {
+onMounted(async () => {
   // Detect color scheme
   isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
 
@@ -90,7 +90,11 @@ onMounted(() => {
     }
   }, 350)
 
-  setTimeout(() => navigateTo('/login'), 3200)
+    setTimeout(async () => {
+    const { checkSetup } = useAuth()
+    const configured = await checkSetup()
+    await navigateTo(configured ? '/login' : '/setup')
+  }, 3200)
 })
 </script>
 

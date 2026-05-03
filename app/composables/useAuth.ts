@@ -5,6 +5,7 @@ interface User {
   name: string
   email: string
   role: string
+  company_id: number
 }
 
 export const useAuth = () => {
@@ -12,7 +13,6 @@ export const useAuth = () => {
   const baseUrl = config.public.apiBase
 
   const user = useState<User | null>('auth:user', () => null)
-
   const isLoading = ref(false)
 
   if (process.client && !user.value) {
@@ -28,24 +28,13 @@ export const useAuth = () => {
     try {
       const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
         `${baseUrl}/api/auth/login`,
-        {
-          method: 'POST' as const,
-          body: credentials,
-          credentials: 'include'
-        }
+        { method: 'POST', body: credentials, credentials: 'include' }
       )
 
       if (res.success && res.data?.user) {
         user.value = res.data.user
         if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
-
-        toast.success('Welcome back!', {
-          description: `Logged in as ${res.data.user.name}`
-        })
-
-        const target = ['SuperAdmin', 'Admin'].includes(res.data.user.role)
-          ? '/dashboard'
-          : '/'
+        const target = ['SuperAdmin', 'Admin'].includes(res.data.user.role) ? '/dashboard' : '/'
         await navigateTo(target)
         return res
       }
@@ -61,12 +50,9 @@ export const useAuth = () => {
   const logout = async () => {
     isLoading.value = true
     try {
-      await $fetch(`${baseUrl}/api/auth/logout`, {
-        method: 'POST' as const,
-        credentials: 'include'
-      })
-    } catch {
-    } finally {
+      await $fetch(`${baseUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+    } catch {}
+    finally {
       user.value = null
       if (process.client) localStorage.removeItem('user')
       isLoading.value = false
@@ -75,16 +61,21 @@ export const useAuth = () => {
     }
   }
 
-  const setupAdmin = async (values: { name: string; email: string; password: string }) => {
+  const setup = async (values: {
+    business_name: string
+    business_type: string
+    phone?: string
+    address?: string
+    tin?: string
+    owner_name: string
+    owner_email: string
+    owner_password: string
+  }) => {
     isLoading.value = true
     try {
       const res = await $fetch<{ success: boolean; message: string }>(
-        `${baseUrl}/api/auth/setup`,
-        {
-          method: 'POST' as const,
-          body: values,
-          credentials: 'include'
-        }
+        `${baseUrl}/api/setup`,
+        { method: 'POST', body: values, credentials: 'include' }
       )
       return res
     } catch (err: any) {
@@ -94,11 +85,24 @@ export const useAuth = () => {
     }
   }
 
+  const checkSetup = async () => {
+    try {
+      const res = await $fetch<{ success: boolean; data?: { configured: boolean } }>(
+        `${baseUrl}/api/setup/status`,
+        { credentials: 'include' }
+      )
+      return res.data?.configured ?? false
+    } catch {
+      return false
+    }
+  }
+
   return {
     user: readonly(user),
     isLoading: readonly(isLoading),
     login,
     logout,
-    setupAdmin,
+    setup,
+    checkSetup,
   }
 }
