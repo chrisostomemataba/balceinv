@@ -39,14 +39,14 @@ const businessTypes = [
 ]
 
 const formSchema = toTypedSchema(z.object({
-  business_name:   z.string().min(2, 'Business name is required'),
-  business_type:   z.string().min(1, 'Please select a business type'),
-  phone:           z.string().optional(),
-  address:         z.string().optional(),
-  tin:             z.string().optional(),
-  owner_name:      z.string().min(2, 'Your name is required'),
-  owner_email:     z.string().min(1, 'Email is required').email('Enter a valid email'),
-  owner_password:  z.string().min(6, 'Password must be at least 6 characters'),
+  business_name:  z.string().min(2, 'Business name is required'),
+  business_type:  z.string().min(1, 'Please select a business type'),
+  phone:          z.string().optional(),
+  address:        z.string().optional(),
+  tin:            z.string().optional(),
+  owner_name:     z.string().min(2, 'Your name is required'),
+  owner_email:    z.string().min(1, 'Email is required').email('Enter a valid email'),
+  owner_password: z.string().min(6, 'Password must be at least 6 characters'),
 }))
 
 const form = useForm({ validationSchema: formSchema })
@@ -61,8 +61,8 @@ onMounted(async () => {
 })
 
 const nextStep = async () => {
-  const nameValid  = await form.validateField('business_name')
-  const typeValid  = await form.validateField('business_type')
+  const nameValid = await form.validateField('business_name')
+  const typeValid = await form.validateField('business_type')
   if (nameValid.valid && typeValid.valid) {
     step.value = 2
   }
@@ -133,152 +133,148 @@ const onSubmit = form.handleSubmit(async (values) => {
     <main class="form-side" :class="{ show: mounted }">
       <div class="form-box">
 
-        <Transition name="slide" mode="out-in">
-          <div v-if="step === 1" key="step1">
-            <div class="form-head">
-              <h2>Your business</h2>
-              <p>Start with the basics — you can update everything later in settings.</p>
-            </div>
-
-            <div class="fields">
-              <FormField v-slot="{ componentField }" name="business_name">
-                <FormItem>
-                  <FormLabel>Business name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. Duka la Amina" v-bind="componentField" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
-
-              <FormField v-slot="{ componentField }" name="business_type">
-                <FormItem>
-                  <FormLabel>Business type</FormLabel>
-                  <FormControl>
-                    <Select v-bind="componentField">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your business type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem
-                            v-for="bt in businessTypes"
-                            :key="bt.value"
-                            :value="bt.value"
-                          >
-                            {{ bt.label }}
-                          </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
-
-              <FormField v-slot="{ componentField }" name="phone">
-                <FormItem>
-                  <FormLabel>Phone <span class="optional">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="+255 7xx xxx xxx" v-bind="componentField" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
-
-              <FormField v-slot="{ componentField }" name="address">
-                <FormItem>
-                  <FormLabel>Address <span class="optional">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="Street, area, city" v-bind="componentField" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
-
-              <FormField v-slot="{ componentField }" name="tin">
-                <FormItem>
-                  <FormLabel>TIN number <span class="optional">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="Tax Identification Number" v-bind="componentField" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
-
-              <Button as-child>
-                <button type="button" class="w-full h-11" @click="nextStep">
-                  Continue to owner account
-                </button>
-              </Button>
-            </div>
+        <div v-show="step === 1">
+          <div class="form-head">
+            <h2>Your business</h2>
+            <p>Start with the basics — you can update everything later in settings.</p>
           </div>
 
-          <div v-else key="step2">
-            <div class="form-head">
-              <h2>Owner account</h2>
-              <p>This will be the main admin account for your business.</p>
-            </div>
+          <div class="fields">
+            <FormField v-slot="{ componentField }" name="business_name">
+              <FormItem>
+                <FormLabel>Business name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. Duka la Amina" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
 
-            <form @submit="onSubmit" class="fields">
-              <FormField v-slot="{ componentField }" name="owner_name">
-                <FormItem>
-                  <FormLabel>Your full name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g. Amina Juma"
-                      :disabled="isLoading"
-                      v-bind="componentField"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
+            <FormField v-slot="{ componentField }" name="business_type">
+              <FormItem>
+                <FormLabel>Business type</FormLabel>
+                <FormControl>
+                  <Select v-bind="componentField">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem
+                          v-for="bt in businessTypes"
+                          :key="bt.value"
+                          :value="bt.value"
+                        >
+                          {{ bt.label }}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
 
-              <FormField v-slot="{ componentField }" name="owner_email">
-                <FormItem>
-                  <FormLabel>Email address</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      autocomplete="email"
-                      :disabled="isLoading"
-                      v-bind="componentField"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
+            <FormField v-slot="{ componentField }" name="phone">
+              <FormItem>
+                <FormLabel>Phone <span class="optional">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input placeholder="+255 7xx xxx xxx" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
 
-              <FormField v-slot="{ componentField }" name="owner_password">
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="At least 6 characters"
-                      autocomplete="new-password"
-                      :disabled="isLoading"
-                      v-bind="componentField"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
+            <FormField v-slot="{ componentField }" name="address">
+              <FormItem>
+                <FormLabel>Address <span class="optional">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input placeholder="Street, area, city" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
 
-              <Button as-child>
-            <button type="button" class="w-full h-11" :disabled="isLoading" @click="onSubmit">
+            <FormField v-slot="{ componentField }" name="tin">
+              <FormItem>
+                <FormLabel>TIN number <span class="optional">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input placeholder="Tax Identification Number" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <Button class="w-full h-11" @click="nextStep">
+              Continue to owner account
+            </Button>
+          </div>
+        </div>
+
+        <div v-show="step === 2">
+          <div class="form-head">
+            <h2>Owner account</h2>
+            <p>This will be the main admin account for your business.</p>
+          </div>
+
+          <form class="fields" @submit="onSubmit">
+            <FormField v-slot="{ componentField }" name="owner_name">
+              <FormItem>
+                <FormLabel>Your full name</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g. Amina Juma"
+                    :disabled="isLoading"
+                    v-bind="componentField"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <FormField v-slot="{ componentField }" name="owner_email">
+              <FormItem>
+                <FormLabel>Email address</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    autocomplete="email"
+                    :disabled="isLoading"
+                    v-bind="componentField"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <FormField v-slot="{ componentField }" name="owner_password">
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    placeholder="At least 6 characters"
+                    autocomplete="new-password"
+                    :disabled="isLoading"
+                    v-bind="componentField"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <Button as-child>
+              <button type="submit" class="w-full h-11" :disabled="isLoading">
                 {{ isLoading ? 'Creating account...' : 'Create business account' }}
-            </button>
+              </button>
             </Button>
 
-              <button type="button" class="back-btn" @click="step = 1" :disabled="isLoading">
-                ← Back to business info
-              </button>
-            </form>
-          </div>
-        </Transition>
+            <button type="button" class="back-btn" :disabled="isLoading" @click="step = 1">
+              ← Back to business info
+            </button>
+          </form>
+        </div>
 
         <div class="login-row">
           Already have an account?
