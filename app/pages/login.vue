@@ -2,6 +2,7 @@
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import { toast } from 'vue-sonner'
+import { Toaster } from '~/components/ui/sonner'
 import { z } from 'zod'
 import {
   FormControl,
@@ -14,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff } from 'lucide-vue-next'
 
-definePageMeta({ layout: false })
+definePageMeta({ layout: 'auth' })
 
 const formSchema = toTypedSchema(z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -148,6 +149,7 @@ const onSubmit = form.handleSubmit(async (values) => {
       </div>
     </main>
   </div>
+<Toaster />
 </template>
 
 <style scoped>
