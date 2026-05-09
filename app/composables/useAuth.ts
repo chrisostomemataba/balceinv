@@ -24,28 +24,26 @@ export const useAuth = () => {
   }
 
   const login = async (credentials: { email: string; password: string }) => {
-    isLoading.value = true
-    try {
-      const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
-        `${baseUrl}/api/auth/login`,
-        { method: 'POST', body: credentials, credentials: 'include' }
-      )
+  isLoading.value = true
+  try {
+    const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
+      `${baseUrl}/api/auth/login`,
+      { method: 'POST', body: credentials, credentials: 'include' }
+    )
 
-      if (res.success && res.data?.user) {
-        user.value = res.data.user
-        if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
-        const target = ['SuperAdmin', 'Admin'].includes(res.data.user.role) ? '/dashboard' : '/'
-        await navigateTo(target)
-        return res
-      }
-
-      throw new Error(res.message || 'Login failed')
-    } catch (err: any) {
-      throw err
-    } finally {
-      isLoading.value = false
+    if (res.success && res.data?.user) {
+      user.value = res.data.user
+      if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
+      return res  // ← just return, let the page handle navigation
     }
+
+    throw new Error(res.message || 'Login failed')
+  } catch (err: any) {
+    throw err
+  } finally {
+    isLoading.value = false
   }
+}
 
   const logout = async () => {
     isLoading.value = true
