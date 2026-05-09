@@ -58,12 +58,13 @@ watch(() => user.value, async (newUser) => {
 
 const navigationItems = computed(() => {
   const items: Record<string, NavigationItem[]> = {
+
     operations: [
       {
         path: '/pos',
         icon: CreditCard,
         label: 'Point of Sale',
-        resource: 'pos',
+        resource: 'sales',
       },
       {
         path: '/sales',
@@ -81,7 +82,7 @@ const navigationItems = computed(() => {
         path: '/stock-movements',
         icon: TrendingUp,
         label: 'Stock Movements',
-        resource: 'stock-movements',
+        resource: 'stock_movements',
       },
     ],
     management: [
