@@ -14,8 +14,9 @@ interface Product {
   category?: string | null
   unit: string
   piecesPerUnit: number
-  createdAt: Date
-  updatedAt: Date
+  metadata?: Record<string, any> | null
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 interface ProductFilters {
@@ -35,9 +36,6 @@ interface UploadResult {
 }
 
 export const useProducts = () => {
-  // useRuntimeConfig() reads the apiBase we set in nuxt.config.ts runtimeConfig.
-  // On desktop (Tauri), this will be http://localhost:8080.
-  // On web, it will be your deployed Go server URL.
   const { public: { apiBase } } = useRuntimeConfig()
 
   const products = ref<Product[]>([])
@@ -51,14 +49,10 @@ export const useProducts = () => {
       const query = new URLSearchParams()
       if (filters?.search) query.append('search', filters.search)
       if (filters?.category) query.append('category', filters.category)
-
       const qs = query.toString()
       const url = qs ? `${apiBase}/api/products?${qs}` : `${apiBase}/api/products`
-
-      const res = await $fetch<ApiResponse<Product[]>>(url, {
-        credentials: 'include'
-      })
-      products.value = res.data
+      const res = await $fetch<ApiResponse<Product[]>>(url, { credentials: 'include' as const })
+      products.value = res.data ?? []
     } catch (error: any) {
       toast.error(error?.data?.message || 'Failed to fetch products')
     } finally {
@@ -70,7 +64,7 @@ export const useProducts = () => {
     loading.value = true
     try {
       const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
-        credentials: 'include'
+        credentials: 'include' as const
       })
       selectedProduct.value = res.data
       return res.data
@@ -85,9 +79,9 @@ export const useProducts = () => {
     loading.value = true
     try {
       const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products`, {
-        method: 'POST',
+        method: 'POST' as const,
         body: product,
-        credentials: 'include'
+        credentials: 'include' as const
       })
       products.value.unshift(res.data)
       toast.success(res.message)
@@ -104,9 +98,9 @@ export const useProducts = () => {
     loading.value = true
     try {
       const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
-        method: 'PUT',
+        method: 'PUT' as const,
         body: product,
-        credentials: 'include'
+        credentials: 'include' as const
       })
       const index = products.value.findIndex(p => p.id === id)
       if (index !== -1) products.value[index] = res.data
@@ -124,8 +118,8 @@ export const useProducts = () => {
     loading.value = true
     try {
       const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/products/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
+        method: 'DELETE' as const,
+        credentials: 'include' as const
       })
       products.value = products.value.filter(p => p.id !== id)
       toast.success(res.message)
@@ -142,19 +136,15 @@ export const useProducts = () => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-
       const res = await $fetch<ApiResponse<UploadResult>>(`${apiBase}/api/products/upload`, {
-        method: 'POST',
+        method: 'POST' as const,
         body: formData,
-        credentials: 'include'
+        credentials: 'include' as const
       })
-
       toast.success(res.message)
-
       if (res.data.errors.length > 0) {
         toast.warning(`${res.data.errors.length} product${res.data.errors.length > 1 ? 's' : ''} could not be imported`)
       }
-
       await fetchProducts()
       return res.data
     } catch (error: any) {
@@ -166,8 +156,6 @@ export const useProducts = () => {
   }
 
   const downloadTemplate = (): void => {
-    // Opens the template download in the current tab.
-    // On desktop (Tauri) this triggers a native file save dialog.
     window.open(`${apiBase}/api/products/template`, '_blank')
     toast.success('Template downloaded')
   }
@@ -176,9 +164,9 @@ export const useProducts = () => {
     loading.value = true
     try {
       const res = await $fetch<ApiResponse<Product[]>>(`${apiBase}/api/products/low-stock`, {
-        credentials: 'include'
+        credentials: 'include' as const
       })
-      lowStockProducts.value = res.data
+      lowStockProducts.value = res.data ?? []
     } catch (error: any) {
       toast.error(error?.data?.message || 'Failed to fetch low stock products')
     } finally {

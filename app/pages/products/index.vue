@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Plus, Upload, Download, Package, DollarSign, TrendingUp, AlertTriangle } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
-import { columns } from '@/components/products/columns';
-import DataTable from '@/components/products/DataTable.vue';
-import { Button } from '@/components/ui/button';
+import { Plus, Upload, Download, Package, DollarSign, AlertTriangle, X } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import { createColumns } from '@/components/products/columns'
+import DataTable from '@/components/products/DataTable.vue'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,38 +21,45 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '~/composables/useAuth';
-import { usePermissions } from '~/composables/usePermissions';
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '~/composables/useAuth'
+import { usePermissions } from '~/composables/usePermissions'
 
-const { user } = useAuth();
-const { canCreate, canEdit, canDelete, fetchUserPermissions } = usePermissions();
+const { user } = useAuth()
+const { canCreate, canEdit, canDelete, fetchUserPermissions } = usePermissions()
 
-const { 
-  products, 
-  loading, 
+const {
+  products,
+  loading,
   selectedProduct,
-  fetchProducts, 
-  createProduct, 
-  updateProduct, 
+  fetchProducts,
+  createProduct,
+  updateProduct,
   deleteProduct,
   uploadExcel,
   downloadTemplate,
-  fetchProduct
-} = useProducts();
+  fetchProduct,
+} = useProducts()
 
-const showDialog = ref(false);
-const showDeleteDialog = ref(false);
-const showDetailsDialog = ref(false);
-const showUploadDialog = ref(false);
-const isEditing = ref(false);
-const uploadFile = ref<File | null>(null);
+const { catalog, loading: catalogLoading, fetchCatalog, searchCatalog } = useCatalog()
+
+const showDialog = ref(false)
+const showDeleteDialog = ref(false)
+const showDetailsDialog = ref(false)
+const showUploadDialog = ref(false)
+const isEditing = ref(false)
+const uploadFile = ref<File | null>(null)
+const detailsLoading = ref(false)
+
+const showCatalogPanel = ref(false)
+const catalogSearch = ref('')
+const filteredCatalog = ref<typeof catalog.value>([])
 
 const formData = ref({
   name: '',
@@ -67,101 +74,106 @@ const formData = ref({
   category: '',
   unit: 'pcs',
   piecesPerUnit: '1',
-});
+})
+
+const metadataFields = ref<Array<{ key: string; value: string }>>([])
 
 const formatCurrency = (value: string): string => {
-  const number = parseFloat(value.replace(/[^0-9.]/g, ''));
-  if (isNaN(number)) return '';
+  const number = parseFloat(value.replace(/[^0-9.]/g, ''))
+  if (isNaN(number)) return ''
   return new Intl.NumberFormat('en-TZ', {
     style: 'currency',
     currency: 'TZS',
     minimumFractionDigits: 0,
-  }).format(number);
-};
+  }).format(number)
+}
 
 const handlePriceInput = (field: 'price' | 'costPrice' | 'wholesalePrice', event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const cursorPos = input.selectionStart || 0;
-  const oldValue = formData.value[field];
-  const newValue = input.value;
-  
-  formData.value[field] = newValue;
-  
+  const input = event.target as HTMLInputElement
+  const newValue = input.value
+  formData.value[field] = newValue
   nextTick(() => {
-    if (newValue) {
-      const formatted = formatCurrency(newValue);
-      formData.value[field] = formatted;
-    }
-  });
-};
+    if (newValue) formData.value[field] = formatCurrency(newValue)
+  })
+}
+
+const parseCurrency = (value: string): number =>
+  parseFloat(value.replace(/[^0-9.]/g, '')) || 0
+
+const addMetadataField = () => metadataFields.value.push({ key: '', value: '' })
+
+const removeMetadataField = (index: number) => metadataFields.value.splice(index, 1)
+
+const buildMetadata = (): Record<string, string> | null => {
+  const entries = metadataFields.value.filter(f => f.key.trim() !== '')
+  return entries.length === 0
+    ? null
+    : Object.fromEntries(entries.map(f => [f.key.trim(), f.value]))
+}
 
 onMounted(async () => {
   if (user.value) {
-    await fetchUserPermissions(user.value.id);
+    await fetchUserPermissions(user.value.id)
   }
-  await fetchProducts();
-  
-  window.addEventListener('edit-product', handleEdit);
-  window.addEventListener('delete-product', handleDelete);
-  window.addEventListener('view-product', handleViewDetails);
-});
+  await fetchProducts()
+})
 
-onUnmounted(() => {
-  window.removeEventListener('edit-product', handleEdit);
-  window.removeEventListener('delete-product', handleDelete);
-  window.removeEventListener('view-product', handleViewDetails);
-});
-
-const handleEdit = (event: any) => {
-  if (!canEdit('products')) {
-    toast.error('You do not have permission to edit products');
-    return;
-  }
-
-  const product = event.detail;
-  isEditing.value = true;
-  formData.value = {
-    name: product.name,
-    sku: product.sku,
-    barcode: product.barcode || '',
-    price: formatCurrency(product.price.toString()),
-    costPrice: formatCurrency(product.costPrice.toString()),
-    quantity: product.quantity.toString(),
-    minStock: product.minStock.toString(),
-    wholesalePrice: product.wholesalePrice ? formatCurrency(product.wholesalePrice.toString()) : '',
-    wholesaleMin: product.wholesaleMin?.toString() || '10',
-    category: product.category || '',
-    unit: product.unit,
-    piecesPerUnit: product.piecesPerUnit.toString(),
-  };
-  selectedProduct.value = product;
-  showDialog.value = true;
-};
-
-const handleDelete = (event: any) => {
-  if (!canDelete('products')) {
-    toast.error('You do not have permission to delete products');
-    return;
-  }
-
-  selectedProduct.value = event.detail;
-  showDeleteDialog.value = true;
-};
-
-const handleViewDetails = async (event: any) => {
-  const product = event.detail;
-  await fetchProduct(product.id);
-  showDetailsDialog.value = true;
-};
+const columns = computed(() =>
+  createColumns({
+    onView: async (product) => {
+      detailsLoading.value = true
+      selectedProduct.value = product
+      showDetailsDialog.value = true
+      await fetchProduct(product.id)
+      detailsLoading.value = false
+    },
+    onEdit: (product) => {
+      if (!canEdit('products')) {
+        toast.error('You do not have permission to edit products')
+        return
+      }
+      isEditing.value = true
+      formData.value = {
+        name: product.name,
+        sku: product.sku,
+        barcode: product.barcode || '',
+        price: formatCurrency(product.price.toString()),
+        costPrice: formatCurrency(product.costPrice.toString()),
+        quantity: product.quantity.toString(),
+        minStock: product.minStock.toString(),
+        wholesalePrice: product.wholesalePrice
+          ? formatCurrency(product.wholesalePrice.toString())
+          : '',
+        wholesaleMin: product.wholesaleMin?.toString() || '10',
+        category: product.category || '',
+        unit: product.unit,
+        piecesPerUnit: product.piecesPerUnit.toString(),
+      }
+      metadataFields.value = product.metadata
+        ? Object.entries(product.metadata).map(([key, value]) => ({ key, value: String(value) }))
+        : []
+      selectedProduct.value = product
+      showCatalogPanel.value = false
+      showDialog.value = true
+    },
+    onDelete: (product) => {
+      if (!canDelete('products')) {
+        toast.error('You do not have permission to delete products')
+        return
+      }
+      selectedProduct.value = product
+      showDeleteDialog.value = true
+    },
+  })
+)
 
 const openCreateDialog = () => {
   if (!canCreate('products')) {
-    toast.error('You do not have permission to create products');
-    return;
+    toast.error('You do not have permission to create products')
+    return
   }
-
-  isEditing.value = false;
-  selectedProduct.value = null;
+  isEditing.value = false
+  selectedProduct.value = null
   formData.value = {
     name: '',
     sku: '',
@@ -175,27 +187,52 @@ const openCreateDialog = () => {
     category: '',
     unit: 'pcs',
     piecesPerUnit: '1',
-  };
-  showDialog.value = true;
-};
+  }
+  metadataFields.value = []
+  showCatalogPanel.value = false
+  catalogSearch.value = ''
+  showDialog.value = true
+}
 
 const openUploadDialog = () => {
   if (!canCreate('products')) {
-    toast.error('You do not have permission to upload products');
-    return;
+    toast.error('You do not have permission to upload products')
+    return
   }
+  showUploadDialog.value = true
+}
 
-  showUploadDialog.value = true;
-};
+const toggleCatalogPanel = async () => {
+  showCatalogPanel.value = !showCatalogPanel.value
+  if (showCatalogPanel.value && catalog.value.length === 0) {
+    await fetchCatalog()
+    filteredCatalog.value = catalog.value
+  }
+}
 
-const parseCurrency = (value: string): number => {
-  return parseFloat(value.replace(/[^0-9.]/g, '')) || 0;
-};
+watch(catalogSearch, async (val) => {
+  filteredCatalog.value = await searchCatalog(val)
+})
+
+const prefillFromCatalog = (item: typeof catalog.value[number]) => {
+  formData.value.name = item.name
+  formData.value.category = item.category ?? ''
+  formData.value.unit = item.unit
+  formData.value.sku = item.sku_prefix ? `${item.sku_prefix}-` : ''
+  formData.value.price = item.default_price
+    ? formatCurrency(String(item.default_price))
+    : ''
+  metadataFields.value = item.metadata
+    ? Object.entries(item.metadata).map(([key, value]) => ({ key, value: String(value) }))
+    : []
+  showCatalogPanel.value = false
+  catalogSearch.value = ''
+}
 
 const handleSubmit = async () => {
   if (!formData.value.name || !formData.value.sku || !formData.value.price || !formData.value.costPrice) {
-    toast.error('Please fill in all required fields');
-    return;
+    toast.error('Please fill in all required fields')
+    return
   }
 
   const productData = {
@@ -206,76 +243,74 @@ const handleSubmit = async () => {
     costPrice: parseCurrency(formData.value.costPrice),
     quantity: parseInt(formData.value.quantity) || 0,
     minStock: parseInt(formData.value.minStock) || 5,
-    wholesalePrice: formData.value.wholesalePrice ? parseCurrency(formData.value.wholesalePrice) : null,
+    wholesalePrice: formData.value.wholesalePrice
+      ? parseCurrency(formData.value.wholesalePrice)
+      : null,
     wholesaleMin: parseInt(formData.value.wholesaleMin) || 10,
     category: formData.value.category || null,
     unit: formData.value.unit,
     piecesPerUnit: parseInt(formData.value.piecesPerUnit) || 1,
-  };
+    metadata: buildMetadata(),
+  }
 
   try {
     if (isEditing.value && selectedProduct.value) {
       if (!canEdit('products')) {
-        toast.error('You do not have permission to edit products');
-        return;
+        toast.error('You do not have permission to edit products')
+        return
       }
-      await updateProduct(selectedProduct.value.id, productData);
+      await updateProduct(selectedProduct.value.id, productData)
     } else {
       if (!canCreate('products')) {
-        toast.error('You do not have permission to create products');
-        return;
+        toast.error('You do not have permission to create products')
+        return
       }
-      await createProduct(productData);
+      await createProduct(productData)
     }
-    showDialog.value = false;
+    showDialog.value = false
   } catch (error) {
-    console.error('Failed to save product:', error);
+    console.error('Failed to save product:', error)
   }
-};
+}
 
 const confirmDelete = async () => {
   if (!canDelete('products')) {
-    toast.error('You do not have permission to delete products');
-    return;
+    toast.error('You do not have permission to delete products')
+    return
   }
-
   if (selectedProduct.value) {
     try {
-      await deleteProduct(selectedProduct.value.id);
-      showDeleteDialog.value = false;
-      selectedProduct.value = null;
+      await deleteProduct(selectedProduct.value.id)
+      showDeleteDialog.value = false
+      selectedProduct.value = null
     } catch (error) {
-      console.error('Failed to delete product:', error);
+      console.error('Failed to delete product:', error)
     }
   }
-};
+}
 
 const handleFileUpload = (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  if (input.files && input.files[0]) {
-    uploadFile.value = input.files[0];
-  }
-};
+  const input = event.target as HTMLInputElement
+  if (input.files && input.files[0]) uploadFile.value = input.files[0]
+}
 
 const handleUpload = async () => {
   if (!canCreate('products')) {
-    toast.error('You do not have permission to upload products');
-    return;
+    toast.error('You do not have permission to upload products')
+    return
   }
-
   if (!uploadFile.value) {
-    toast.error('Please select a file');
-    return;
+    toast.error('Please select a file')
+    return
   }
-
   try {
-    await uploadExcel(uploadFile.value);
-    showUploadDialog.value = false;
-    uploadFile.value = null;
+    await uploadExcel(uploadFile.value)
+    showUploadDialog.value = false
+    uploadFile.value = null
   } catch (error) {
-    console.error('Upload failed:', error);
+    console.error('Upload failed:', error)
   }
-};
+}
 </script>
 
 <template>
@@ -283,15 +318,13 @@ const handleUpload = async () => {
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Products Inventory</h1>
-        <p class="text-muted-foreground mt-1">
-          Manage your products and stock levels
-        </p>
+        <p class="text-muted-foreground mt-1">Manage your products and stock levels</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button 
+        <Button
           v-if="canCreate('products')"
-          variant="outline" 
-          @click="openUploadDialog" 
+          variant="outline"
+          @click="openUploadDialog"
           :disabled="loading"
         >
           <Upload class="mr-2 h-4 w-4" />
@@ -301,9 +334,9 @@ const handleUpload = async () => {
           <Download class="mr-2 h-4 w-4" />
           Template
         </Button>
-        <Button 
+        <Button
           v-if="canCreate('products')"
-          @click="openCreateDialog" 
+          @click="openCreateDialog"
           :disabled="loading"
         >
           <Plus class="mr-2 h-4 w-4" />
@@ -325,7 +358,7 @@ const handleUpload = async () => {
           <div v-else class="text-2xl font-bold">{{ products.length }}</div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Total Value</CardTitle>
@@ -340,7 +373,7 @@ const handleUpload = async () => {
           </div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Low Stock Items</CardTitle>
@@ -370,13 +403,7 @@ const handleUpload = async () => {
           </div>
           <div class="rounded-md border">
             <div class="p-4 space-y-3">
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
-              <Skeleton class="h-12 w-full" />
+              <Skeleton v-for="i in 7" :key="i" class="h-12 w-full" />
             </div>
           </div>
           <div class="flex justify-between items-center px-2">
@@ -391,6 +418,7 @@ const handleUpload = async () => {
       </CardContent>
     </Card>
 
+    <!-- Create / Edit dialog -->
     <Dialog v-model:open="showDialog">
       <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -399,6 +427,48 @@ const handleUpload = async () => {
             {{ isEditing ? 'Update product information' : 'Add a new product to inventory' }}
           </DialogDescription>
         </DialogHeader>
+
+        <div v-if="!isEditing" class="flex items-center justify-between">
+          <span class="text-sm text-muted-foreground">Have it in your catalog?</span>
+          <Button variant="outline" size="sm" type="button" @click="toggleCatalogPanel">
+            {{ showCatalogPanel ? 'Hide Catalog' : 'Use Catalog' }}
+          </Button>
+        </div>
+
+        <div v-if="showCatalogPanel && !isEditing" class="rounded-lg border bg-muted/30 p-3 space-y-2">
+          <Input v-model="catalogSearch" placeholder="Search catalog by name or category..." />
+          <div class="max-h-48 overflow-y-auto space-y-1">
+            <div v-if="catalogLoading" class="space-y-1">
+              <Skeleton v-for="i in 4" :key="i" class="h-12 w-full" />
+            </div>
+            <p
+              v-else-if="filteredCatalog.length === 0"
+              class="text-center text-sm text-muted-foreground py-4"
+            >
+              No catalog items found.
+            </p>
+            <button
+              v-else
+              v-for="item in filteredCatalog"
+              :key="item.id"
+              type="button"
+              class="w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors"
+              @click="prefillFromCatalog(item)"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">{{ item.name }}</span>
+                <Badge variant="outline">{{ item.unit }}</Badge>
+              </div>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ [item.category, item.sub_category].filter(Boolean).join(' · ') }}
+                {{ item.default_price ? `· TZS ${item.default_price.toLocaleString()}` : '' }}
+              </p>
+            </button>
+          </div>
+        </div>
+
+        <Separator v-if="showCatalogPanel && !isEditing" />
+
         <div class="grid gap-4 py-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-2">
@@ -427,18 +497,18 @@ const handleUpload = async () => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="price">Selling Price (TZS) *</Label>
-              <Input 
-                id="price" 
-                v-model="formData.price" 
+              <Input
+                id="price"
+                v-model="formData.price"
                 placeholder="TZS 1,000"
                 @input="handlePriceInput('price', $event)"
               />
             </div>
             <div class="space-y-2">
               <Label for="costPrice">Cost Price (TZS) *</Label>
-              <Input 
-                id="costPrice" 
-                v-model="formData.costPrice" 
+              <Input
+                id="costPrice"
+                v-model="formData.costPrice"
                 placeholder="TZS 700"
                 @input="handlePriceInput('costPrice', $event)"
               />
@@ -448,9 +518,9 @@ const handleUpload = async () => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="wholesalePrice">Wholesale Price (TZS)</Label>
-              <Input 
-                id="wholesalePrice" 
-                v-model="formData.wholesalePrice" 
+              <Input
+                id="wholesalePrice"
+                v-model="formData.wholesalePrice"
                 placeholder="Optional"
                 @input="handlePriceInput('wholesalePrice', $event)"
               />
@@ -477,16 +547,49 @@ const handleUpload = async () => {
               <Input id="unit" v-model="formData.unit" placeholder="pcs, btl, kg" />
             </div>
           </div>
+
+          <Separator />
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <Label>Additional Details</Label>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                  Extra attributes prefilled from catalog or added manually.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" type="button" @click="addMetadataField">
+                + Add field
+              </Button>
+            </div>
+            <div
+              v-for="(field, index) in metadataFields"
+              :key="index"
+              class="flex gap-2 items-center"
+            >
+              <Input v-model="field.key" placeholder="Field name" class="w-2/5" />
+              <Input v-model="field.value" placeholder="Value" class="flex-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                @click="removeMetadataField(index)"
+                class="text-destructive hover:text-destructive shrink-0 px-2"
+              >
+                <X class="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" @click="showDialog = false">Cancel</Button>
-          <Button @click="handleSubmit">
-            {{ isEditing ? 'Update' : 'Create' }}
-          </Button>
+          <Button @click="handleSubmit">{{ isEditing ? 'Update' : 'Create' }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
 
+    <!-- Delete confirmation -->
     <AlertDialog v-model:open="showDeleteDialog">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -503,6 +606,7 @@ const handleUpload = async () => {
       </AlertDialogContent>
     </AlertDialog>
 
+    <!-- View details dialog -->
     <Dialog v-model:open="showDetailsDialog">
       <DialogContent class="max-w-2xl">
         <DialogHeader>
@@ -519,9 +623,9 @@ const handleUpload = async () => {
               <p class="font-mono">{{ selectedProduct.sku }}</p>
             </div>
           </div>
-          
+
           <Separator />
-          
+
           <div class="grid grid-cols-2 gap-4">
             <div>
               <Label class="text-muted-foreground">Selling Price</Label>
@@ -532,12 +636,14 @@ const handleUpload = async () => {
               <p class="font-semibold">{{ formatCurrency(selectedProduct.costPrice.toString()) }}</p>
             </div>
           </div>
-          
+
           <div class="grid grid-cols-2 gap-4">
             <div>
               <Label class="text-muted-foreground">Current Stock</Label>
               <div class="flex items-center gap-2">
-                <Badge :variant="selectedProduct.quantity <= selectedProduct.minStock ? 'destructive' : 'secondary'">
+                <Badge
+                  :variant="selectedProduct.quantity <= selectedProduct.minStock ? 'destructive' : 'secondary'"
+                >
                   {{ selectedProduct.quantity }} {{ selectedProduct.unit }}
                 </Badge>
               </div>
@@ -547,24 +653,40 @@ const handleUpload = async () => {
               <p>{{ selectedProduct.category || 'N/A' }}</p>
             </div>
           </div>
+
+          <template v-if="selectedProduct.metadata && Object.keys(selectedProduct.metadata).length > 0">
+            <Separator />
+            <div class="space-y-2">
+              <Label class="text-muted-foreground">Additional Details</Label>
+              <div class="grid grid-cols-2 gap-2">
+                <div
+                  v-for="(value, key) in selectedProduct.metadata"
+                  :key="key"
+                  class="rounded-md border px-3 py-2 bg-muted/30"
+                >
+                  <p class="text-xs text-muted-foreground capitalize">{{ key }}</p>
+                  <p class="text-sm font-medium">{{ value }}</p>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </DialogContent>
     </Dialog>
 
+    <!-- Upload Excel dialog -->
     <Dialog v-model:open="showUploadDialog">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Upload Products from Excel</DialogTitle>
-          <DialogDescription>
-            Upload an Excel file with your products data
-          </DialogDescription>
+          <DialogDescription>Upload an Excel file with your products data</DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-4">
           <div class="space-y-2">
             <Label for="file">Select Excel File</Label>
-            <Input 
-              id="file" 
-              type="file" 
+            <Input
+              id="file"
+              type="file"
               accept=".xlsx,.xls"
               @change="handleFileUpload"
             />
