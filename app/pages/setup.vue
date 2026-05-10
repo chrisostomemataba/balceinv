@@ -52,11 +52,17 @@ const formSchema = toTypedSchema(z.object({
 const form = useForm({ validationSchema: formSchema })
 
 onMounted(async () => {
-  const configured = await checkSetup()
-  if (configured) {
-    await navigateTo('/login')
-    return
+  const route = useRoute()
+  const comingFromLogin = route.query.from === 'login'
+
+  if (!comingFromLogin) {
+    const configured = await checkSetup()
+    if (configured) {
+      await navigateTo('/login')
+      return
+    }
   }
+
   setTimeout(() => { mounted.value = true }, 60)
 })
 

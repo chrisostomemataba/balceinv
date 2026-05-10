@@ -26,8 +26,19 @@ const { login, isLoading } = useAuth()
 const form = useForm({ validationSchema: formSchema })
 const mounted = ref(false)
 const showPassword = ref(false)
+const devUnlocked = ref(false)
 
-onMounted(() => setTimeout(() => { mounted.value = true }, 60))
+onMounted(() => {
+  setTimeout(() => { mounted.value = true }, 60)
+
+  const handler = (e: KeyboardEvent) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+      devUnlocked.value = !devUnlocked.value
+    }
+  }
+  window.addEventListener('keydown', handler)
+  onUnmounted(() => window.removeEventListener('keydown', handler))
+})
 
 const onSubmit = form.handleSubmit(async (values) => {
   try {
@@ -49,7 +60,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 
 <template>
   <div class="root">
-    <!-- Left dark panel -->
     <aside class="panel" :class="{ show: mounted }">
       <div class="panel-content">
         <div class="wordmark">
@@ -92,7 +102,6 @@ const onSubmit = form.handleSubmit(async (values) => {
       </div>
     </aside>
 
-    <!-- Right form panel -->
     <main class="form-side" :class="{ show: mounted }">
       <div class="form-box">
         <div class="form-head">
@@ -139,27 +148,29 @@ const onSubmit = form.handleSubmit(async (values) => {
           </Button>
         </form>
 
-        <div class="or-row">
-          <span /><em>or</em><span />
-        </div>
+        <div class="bottom-links">
+          <NuxtLink to="/setup?from=login" class="setup-link">
+            Set up your business
+          </NuxtLink>
 
-        <NuxtLink to="/admin-page" class="ghost-btn">
-          Create Super User account
-        </NuxtLink>
+          <Transition name="fade">
+            <NuxtLink v-if="devUnlocked" to="/admin-page" class="dev-link">
+              Create Super User account
+            </NuxtLink>
+          </Transition>
+        </div>
       </div>
     </main>
   </div>
-<Toaster />
+  <Toaster />
 </template>
 
 <style scoped>
-/* ── Root ── safe: no overflow:hidden, no fixed */
 .root {
   min-height: 100vh;
   display: flex;
 }
 
-/* ── Left panel ── */
 .panel {
   width: 42%;
   flex-shrink: 0;
@@ -169,22 +180,13 @@ const onSubmit = form.handleSubmit(async (values) => {
   justify-content: center;
   padding: 4rem 3.5rem;
   overflow: hidden;
-  /* Light mode: clean dark navy */
   background: #0d1117;
   opacity: 0;
   transform: translateX(-20px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-
-.panel.show {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* Dark mode: slightly lighter so it separates from the bg */
-:global(.dark) .panel {
-  background: #161b22;
-}
+.panel.show { opacity: 1; transform: translateX(0); }
+:global(.dark) .panel { background: #161b22; }
 
 .panel-content {
   position: relative;
@@ -194,13 +196,11 @@ const onSubmit = form.handleSubmit(async (values) => {
   gap: 2.5rem;
 }
 
-/* Wordmark */
 .wordmark {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
 .wordmark span {
   font-size: 0.75rem;
   font-weight: 700;
@@ -215,33 +215,12 @@ const onSubmit = form.handleSubmit(async (values) => {
   width: 22px;
   height: 22px;
 }
+.squares i { display: block; border-radius: 3px; font-style: normal; }
+.s1 { background: #7bc83a; }
+.s2 { background: #5fa028; opacity: .8; }
+.s3 { background: #5fa028; opacity: .8; }
+.s4 { background: #3e7018; opacity: .45; }
 
-.squares i {
-  display: block;
-  border-radius: 3px;
-  font-style: normal;
-}
-
-.s1 {
-  background: #7bc83a;
-}
-
-.s2 {
-  background: #5fa028;
-  opacity: .8;
-}
-
-.s3 {
-  background: #5fa028;
-  opacity: .8;
-}
-
-.s4 {
-  background: #3e7018;
-  opacity: .45;
-}
-
-/* Pitch */
 .pitch h1 {
   font-size: clamp(1.75rem, 2.5vw, 2.2rem);
   font-weight: 700;
@@ -250,7 +229,6 @@ const onSubmit = form.handleSubmit(async (values) => {
   color: #ffffff;
   margin: 0 0 1rem;
 }
-
 .pitch p {
   font-size: 0.875rem;
   line-height: 1.75;
@@ -259,7 +237,6 @@ const onSubmit = form.handleSubmit(async (values) => {
   max-width: 300px;
 }
 
-/* Chips */
 .chips {
   display: flex;
   align-items: center;
@@ -269,34 +246,11 @@ const onSubmit = form.handleSubmit(async (values) => {
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 10px;
 }
+.chip { display: flex; flex-direction: column; gap: 3px; }
+.chip strong { font-size: 0.8rem; font-weight: 600; color: rgba(255, 255, 255, 0.85); white-space: nowrap; }
+.chip span { font-size: 0.7rem; color: rgba(255, 255, 255, 0.28); white-space: nowrap; }
+.chip-sep { width: 1px; height: 28px; background: rgba(255, 255, 255, 0.08); flex-shrink: 0; }
 
-.chip {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.chip strong {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  white-space: nowrap;
-}
-
-.chip span {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.28);
-  white-space: nowrap;
-}
-
-.chip-sep {
-  width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-}
-
-/* Footer */
 .panel-foot {
   position: absolute;
   bottom: 2rem;
@@ -308,41 +262,12 @@ const onSubmit = form.handleSubmit(async (values) => {
   letter-spacing: 0.02em;
 }
 
-/* Rings */
-.rings {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
+.rings { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.rings div { position: absolute; border-radius: 50%; border: 1px solid rgba(123, 200, 58, 0.06); }
+.rings div:nth-child(1) { width: 600px; height: 600px; bottom: -280px; right: -220px; }
+.rings div:nth-child(2) { width: 400px; height: 400px; bottom: -170px; right: -130px; }
+.rings div:nth-child(3) { width: 230px; height: 230px; bottom: -80px; right: -55px; border-color: rgba(123, 200, 58, 0.1); }
 
-.rings div {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(123, 200, 58, 0.06);
-}
-
-.rings div:nth-child(1) {
-  width: 600px;
-  height: 600px;
-  bottom: -280px;
-  right: -220px;
-}
-
-.rings div:nth-child(2) {
-  width: 400px;
-  height: 400px;
-  bottom: -170px;
-  right: -130px;
-}
-
-.rings div:nth-child(3) {
-  width: 230px;
-  height: 230px;
-  bottom: -80px;
-  right: -55px;
-  border-color: rgba(123, 200, 58, 0.1);
-}
 .eye-btn {
   position: absolute;
   right: 0.65rem;
@@ -360,7 +285,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 }
 .eye-btn:hover { color: hsl(var(--foreground)); }
 
-/* ── Right form side ── */
 .form-side {
   flex: 1;
   display: flex;
@@ -372,21 +296,11 @@ const onSubmit = form.handleSubmit(async (values) => {
   transform: translateX(20px);
   transition: opacity 0.55s ease 0.1s, transform 0.55s ease 0.1s;
 }
+.form-side.show { opacity: 1; transform: translateX(0); }
 
-.form-side.show {
-  opacity: 1;
-  transform: translateX(0);
-}
+.form-box { width: 100%; max-width: 340px; }
 
-.form-box {
-  width: 100%;
-  max-width: 340px;
-}
-
-.form-head {
-  margin-bottom: 2rem;
-}
-
+.form-head { margin-bottom: 2rem; }
 .form-head h2 {
   font-size: 1.6rem;
   font-weight: 700;
@@ -394,18 +308,9 @@ const onSubmit = form.handleSubmit(async (values) => {
   color: hsl(var(--foreground));
   margin: 0 0 0.3rem;
 }
+.form-head p { font-size: 0.84rem; color: hsl(var(--muted-foreground)); margin: 0; }
 
-.form-head p {
-  font-size: 0.84rem;
-  color: hsl(var(--muted-foreground));
-  margin: 0;
-}
-
-.fields {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
+.fields { display: flex; flex-direction: column; gap: 1.1rem; }
 
 .pw-label {
   display: flex;
@@ -420,74 +325,45 @@ const onSubmit = form.handleSubmit(async (values) => {
   text-decoration: none;
   transition: color 0.15s;
 }
+.ghost-link:hover { color: hsl(var(--foreground)); }
 
-.ghost-link:hover {
-  color: hsl(var(--foreground));
-}
-
-.or-row {
+.bottom-links {
+  margin-top: 1.75rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  margin: 1.5rem 0 1rem;
 }
 
-.or-row span {
-  flex: 1;
-  height: 1px;
-  background: hsl(var(--border));
-}
-
-.or-row em {
-  font-size: 0.72rem;
-  font-style: normal;
-  color: hsl(var(--muted-foreground));
-}
-
-.ghost-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 40px;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid hsl(var(--border));
+.setup-link {
   font-size: 0.84rem;
   font-weight: 500;
   color: hsl(var(--foreground));
   text-decoration: none;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.15s;
 }
+.setup-link:hover { background: hsl(var(--accent)); }
 
-.ghost-btn:hover {
-  background: hsl(var(--accent));
+.dev-link {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: color 0.15s;
 }
+.dev-link:hover { color: hsl(var(--foreground)); }
 
-.spin {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: rot 0.5s linear infinite;
-  margin-right: 7px;
-  vertical-align: middle;
-}
-
-@keyframes rot {
-  to {
-    transform: rotate(360deg);
-  }
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 @media (max-width: 840px) {
-  .panel {
-    display: none;
-  }
-
-  .form-side {
-    padding: 2rem 1.5rem;
-  }
+  .panel { display: none; }
+  .form-side { padding: 2rem 1.5rem; }
 }
 </style>
