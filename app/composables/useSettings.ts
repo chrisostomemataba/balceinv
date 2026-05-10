@@ -73,6 +73,7 @@ interface ApiResponse<T> {
 
 export const useSettings = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   const settings = ref<Settings | null>(null)
   const loading = ref(false)
@@ -81,7 +82,7 @@ export const useSettings = () => {
   const fetchSettings = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Settings>>(`${apiBase}/api/settings`, {
+      const res = await $apiFetch<ApiResponse<Settings>>(`${apiBase}/api/settings`, {
         credentials: 'include'
       })
       settings.value = res.data
@@ -95,7 +96,7 @@ export const useSettings = () => {
   const updateSettings = async (data: UpdateSettingsInput): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Settings>>(`${apiBase}/api/settings`, {
+      const res = await $apiFetch<ApiResponse<Settings>>(`${apiBase}/api/settings`, {
         method: 'PUT',
         body: data,
         credentials: 'include'
@@ -113,7 +114,7 @@ export const useSettings = () => {
   const testEFDConnection = async (endpoint: string, apiKey: string): Promise<boolean> => {
     testing.value = true
     try {
-      const res = await $fetch<ApiResponse<{ status: string; message: string }>>(
+      const res = await $apiFetch<ApiResponse<{ status: string; message: string }>>(
         `${apiBase}/api/settings/test-efd`,
         { method: 'POST', body: { endpoint, apiKey }, credentials: 'include' }
       )
@@ -140,7 +141,7 @@ export const useSettings = () => {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await $fetch<ApiResponse<{ logoUrl: string }>>(
+      const res = await $apiFetch<ApiResponse<{ logoUrl: string }>>(
         `${apiBase}/api/settings/upload-logo`,
         { method: 'POST', body: formData, credentials: 'include' }
       )

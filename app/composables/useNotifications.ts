@@ -17,6 +17,7 @@ export const useNotifications = () => {
   const {
     public: { apiBase },
   } = useRuntimeConfig();
+  const { $apiFetch } = useNuxtApp();
 
   const notifications = ref<Notification[]>([]);
   const notificationCount = ref(0);
@@ -63,7 +64,7 @@ export const useNotifications = () => {
   const fetchNotifications = async (includeSeen = false): Promise<void> => {
     loading.value = true;
     try {
-      const res = await $fetch<any>(`${apiBase}/api/notifications`, {
+      const res = await $apiFetch<any>(`${apiBase}/api/notifications`, {
         query: { includeSeen: includeSeen.toString() },
         credentials: "include",
       });
@@ -90,7 +91,7 @@ export const useNotifications = () => {
   // stays accurate without fetching full notification data every time.
   const fetchNotificationCount = async (): Promise<void> => {
     try {
-      const res = await $fetch<any>(`${apiBase}/api/notifications/count`, {
+      const res = await $apiFetch<any>(`${apiBase}/api/notifications/count`, {
         credentials: "include",
       });
 
@@ -109,7 +110,7 @@ export const useNotifications = () => {
 
   const markAsSeen = async (notificationId: number): Promise<void> => {
     try {
-      await $fetch(`${apiBase}/api/notifications/${notificationId}/mark-seen`, {
+      await $apiFetch(`${apiBase}/api/notifications/${notificationId}/mark-seen`, {
         method: "POST" as const,
         credentials: "include",
       });
@@ -131,7 +132,7 @@ export const useNotifications = () => {
 
   const markAllAsSeen = async (): Promise<void> => {
     try {
-      await $fetch(`${apiBase}/api/notifications/mark-all-seen`, {
+      await $apiFetch(`${apiBase}/api/notifications/mark-all-seen`, {
         method: "POST",
         credentials: "include",
       });
@@ -148,7 +149,7 @@ export const useNotifications = () => {
 
   const deleteNotification = async (notificationId: number): Promise<void> => {
     try {
-      await $fetch(`${apiBase}/api/notifications/${notificationId}`, {
+      await $apiFetch(`${apiBase}/api/notifications/${notificationId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -170,7 +171,7 @@ export const useNotifications = () => {
 
   const clearSeenNotifications = async (): Promise<void> => {
     try {
-      await $fetch(`${apiBase}/api/notifications/clear-seen`, {
+      await $apiFetch(`${apiBase}/api/notifications/clear-seen`, {
         method: "DELETE",
         credentials: "include",
       });

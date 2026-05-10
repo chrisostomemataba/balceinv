@@ -23,6 +23,7 @@ interface ApiResponse<T> {
 
 export const useUsers = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   const users = ref<User[]>([])
   const loading = ref(false)
@@ -31,7 +32,7 @@ export const useUsers = () => {
   const fetchUsers = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<User[]>>(`${apiBase}/api/users`, {
+      const res = await $apiFetch<ApiResponse<User[]>>(`${apiBase}/api/users`, {
         credentials: 'include' as const,
       })
       users.value = res.data
@@ -45,7 +46,7 @@ export const useUsers = () => {
   const fetchUser = async (id: number): Promise<User | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<User>>(`${apiBase}/api/users/${id}`, {
+      const res = await $apiFetch<ApiResponse<User>>(`${apiBase}/api/users/${id}`, {
         credentials: 'include' as const,
       })
       selectedUser.value = res.data
@@ -65,7 +66,7 @@ export const useUsers = () => {
   }): Promise<User | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<User>>(`${apiBase}/api/users`, {
+      const res = await $apiFetch<ApiResponse<User>>(`${apiBase}/api/users`, {
         method: 'POST' as const,
         body: data,
         credentials: 'include' as const,
@@ -87,7 +88,7 @@ export const useUsers = () => {
   ): Promise<User | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<User>>(`${apiBase}/api/users/${id}`, {
+      const res = await $apiFetch<ApiResponse<User>>(`${apiBase}/api/users/${id}`, {
         method: 'PUT' as const,
         body: data,
         credentials: 'include' as const,
@@ -106,7 +107,7 @@ export const useUsers = () => {
   const updatePassword = async (userId: number, newPassword: string): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/users/update-password`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/users/update-password`, {
         method: 'POST' as const,
         body: { userId, newPassword },
         credentials: 'include' as const,
@@ -123,7 +124,7 @@ export const useUsers = () => {
   const deleteUser = async (id: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/users/${id}`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/users/${id}`, {
         method: 'DELETE' as const,
         credentials: 'include' as const,
       })

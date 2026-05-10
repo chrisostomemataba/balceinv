@@ -45,6 +45,7 @@ interface ApiResponse<T> {
 
 export const useStockMovements = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   const movements = ref<StockMovement[]>([])
   const loading = ref(false)
@@ -66,7 +67,7 @@ export const useStockMovements = () => {
         ? `${apiBase}/api/stock-movements?${qs}`
         : `${apiBase}/api/stock-movements`
 
-      const res = await $fetch<ApiResponse<StockMovement[]>>(url, { credentials: 'include' })
+      const res = await $apiFetch<ApiResponse<StockMovement[]>>(url, { credentials: 'include' })
       movements.value = res.data
     } catch (error: any) {
       toast.error(error?.data?.message || 'Failed to fetch stock movements')
@@ -78,7 +79,7 @@ export const useStockMovements = () => {
   const fetchMovement = async (id: number): Promise<StockMovement | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<StockMovement>>(
+      const res = await $apiFetch<ApiResponse<StockMovement>>(
         `${apiBase}/api/stock-movements/${id}`,
         { credentials: 'include' }
       )
@@ -94,7 +95,7 @@ export const useStockMovements = () => {
   const fetchMovementsByProduct = async (productId: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<StockMovement[]>>(
+      const res = await $apiFetch<ApiResponse<StockMovement[]>>(
         `${apiBase}/api/stock-movements/product/${productId}`,
         { credentials: 'include' }
       )
@@ -114,7 +115,7 @@ export const useStockMovements = () => {
         endDate: endDate.toISOString().split('T')[0]!
       })
 
-      const res = await $fetch<ApiResponse<StockMovement[]>>(
+      const res = await $apiFetch<ApiResponse<StockMovement[]>>(
         `${apiBase}/api/stock-movements/date-range?${query.toString()}`,
         { credentials: 'include' }
       )
@@ -129,7 +130,7 @@ export const useStockMovements = () => {
   const createAdjustment = async (data: CreateMovementInput): Promise<StockMovement | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<StockMovement>>(
+      const res = await $apiFetch<ApiResponse<StockMovement>>(
         `${apiBase}/api/stock-movements`,
         { method: 'POST', body: data, credentials: 'include' }
       )
@@ -147,7 +148,7 @@ export const useStockMovements = () => {
   const fetchSummary = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<MovementSummary>>(
+      const res = await $apiFetch<ApiResponse<MovementSummary>>(
         `${apiBase}/api/stock-movements/summary`,
         { credentials: 'include' }
       )
