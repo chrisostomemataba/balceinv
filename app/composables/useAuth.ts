@@ -13,6 +13,7 @@ export const useAuth = () => {
   const baseUrl = config.public.apiBase
 
   const user = useState<User | null>('auth:user', () => null)
+  const userPermissions = useState<any[]>('perms:user', () => [])
   const isLoading = ref(false)
 
   if (process.client && !user.value) {
@@ -24,26 +25,35 @@ export const useAuth = () => {
   }
 
   const login = async (credentials: { email: string; password: string }) => {
-  isLoading.value = true
-  try {
-    const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
-      `${baseUrl}/api/auth/login`,
-      { method: 'POST', body: credentials, credentials: 'include' }
-    )
+    isLoading.value = true
+    try {
+      const res = await $fetch<{ success: boolean; data?: { user: User }; message: string }>(
+        `${baseUrl}/api/auth/login`,
+        { method: 'POST', body: credentials, credentials: 'include' }
+      )
 
-    if (res.success && res.data?.user) {
-      user.value = res.data.user
-      if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
-      return res  // ← just return, let the page handle navigation
+      if (res.success && res.data?.user) {
+        user.value = res.data.user
+        if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
+
+        try {
+          const permRes = await $fetch<{ success: boolean; data: any[] }>(
+            `${baseUrl}/api/permissions/user/${res.data.user.id}`,
+            { credentials: 'include' }
+          )
+          if (permRes.success) userPermissions.value = permRes.data ?? []
+        } catch {}
+
+        return res
+      }
+
+      throw new Error(res.message || 'Login failed')
+    } catch (err: any) {
+      throw err
+    } finally {
+      isLoading.value = false
     }
-
-    throw new Error(res.message || 'Login failed')
-  } catch (err: any) {
-    throw err
-  } finally {
-    isLoading.value = false
   }
-}
 
   const logout = async () => {
     isLoading.value = true
@@ -52,6 +62,7 @@ export const useAuth = () => {
     } catch {}
     finally {
       user.value = null
+      userPermissions.value = []
       if (process.client) localStorage.removeItem('user')
       isLoading.value = false
       toast.success('Signed out successfully')

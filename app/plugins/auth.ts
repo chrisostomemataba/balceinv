@@ -15,7 +15,9 @@ export default defineNuxtPlugin((nuxtApp) => {
       .catch(async () => {
         refreshPromise = null;
         const user = useState('auth:user')
+        const userPermissions = useState('perms:user')
         user.value = null
+        userPermissions.value = []
         if (import.meta.client) localStorage.removeItem('user')
         await nuxtApp.runWithContext(() => navigateTo('/login'))
       });
@@ -25,7 +27,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
   const apiFetch = $fetch.create({
     credentials: 'include',
-    async onResponseError({ response, request, options }) {
+    async onResponseError({ response, request }) {
       const requestUrl =
         typeof request === 'string' ? request
         : request instanceof URL ? request.toString()
