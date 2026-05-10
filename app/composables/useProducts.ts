@@ -37,6 +37,7 @@ interface UploadResult {
 
 export const useProducts = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   const products = ref<Product[]>([])
   const lowStockProducts = ref<Product[]>([])
@@ -51,7 +52,7 @@ export const useProducts = () => {
       if (filters?.category) query.append('category', filters.category)
       const qs = query.toString()
       const url = qs ? `${apiBase}/api/products?${qs}` : `${apiBase}/api/products`
-      const res = await $fetch<ApiResponse<Product[]>>(url, { credentials: 'include' as const })
+      const res = await $apiFetch<ApiResponse<Product[]>>(url, { credentials: 'include' as const })
       products.value = res.data ?? []
     } catch (error: any) {
       toast.error(error?.data?.message || 'Failed to fetch products')
@@ -63,7 +64,7 @@ export const useProducts = () => {
   const fetchProduct = async (id: number): Promise<Product | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
+      const res = await $apiFetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
         credentials: 'include' as const
       })
       selectedProduct.value = res.data
@@ -78,7 +79,7 @@ export const useProducts = () => {
   const createProduct = async (product: Partial<Product>): Promise<Product | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products`, {
+      const res = await $apiFetch<ApiResponse<Product>>(`${apiBase}/api/products`, {
         method: 'POST' as const,
         body: product,
         credentials: 'include' as const
@@ -97,7 +98,7 @@ export const useProducts = () => {
   const updateProduct = async (id: number, product: Partial<Product>): Promise<Product | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
+      const res = await $apiFetch<ApiResponse<Product>>(`${apiBase}/api/products/${id}`, {
         method: 'PUT' as const,
         body: product,
         credentials: 'include' as const
@@ -117,7 +118,7 @@ export const useProducts = () => {
   const deleteProduct = async (id: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/products/${id}`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/products/${id}`, {
         method: 'DELETE' as const,
         credentials: 'include' as const
       })
@@ -136,7 +137,7 @@ export const useProducts = () => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await $fetch<ApiResponse<UploadResult>>(`${apiBase}/api/products/upload`, {
+      const res = await $apiFetch<ApiResponse<UploadResult>>(`${apiBase}/api/products/upload`, {
         method: 'POST' as const,
         body: formData,
         credentials: 'include' as const
@@ -163,7 +164,7 @@ export const useProducts = () => {
   const fetchLowStock = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Product[]>>(`${apiBase}/api/products/low-stock`, {
+      const res = await $apiFetch<ApiResponse<Product[]>>(`${apiBase}/api/products/low-stock`, {
         credentials: 'include' as const
       })
       lowStockProducts.value = res.data ?? []

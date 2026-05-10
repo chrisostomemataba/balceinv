@@ -1,7 +1,8 @@
 export const useDashboard = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   return useAsyncData('dashboard', () =>
-    $fetch(`${apiBase}/api/dashboard`, { credentials: 'include' })
+    $apiFetch(`${apiBase}/api/dashboard`, { credentials: 'include' })
   )
 }

@@ -16,6 +16,7 @@ interface ApiResponse<T> {
 
 export const usePermissions = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   // useState instead of ref — every component that calls usePermissions()
   // shares the exact same reactive array. This is what makes groupByResource
@@ -31,7 +32,7 @@ export const usePermissions = () => {
     if (permissions.value.length > 0) return
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Permission[]>>(`${apiBase}/api/permissions`, {
+      const res = await $apiFetch<ApiResponse<Permission[]>>(`${apiBase}/api/permissions`, {
         credentials: 'include',
       })
       permissions.value = res.data ?? []
@@ -45,7 +46,7 @@ export const usePermissions = () => {
   const fetchUserPermissions = async (userId: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Permission[]>>(
+      const res = await $apiFetch<ApiResponse<Permission[]>>(
         `${apiBase}/api/permissions/user/${userId}`,
         { credentials: 'include' },
       )
@@ -59,7 +60,7 @@ export const usePermissions = () => {
 
   const fetchRolePermissions = async (roleId: number): Promise<Permission[]> => {
     try {
-      const res = await $fetch<ApiResponse<Permission[]>>(
+      const res = await $apiFetch<ApiResponse<Permission[]>>(
         `${apiBase}/api/permissions/role/${roleId}`,
         { credentials: 'include' },
       )
@@ -73,7 +74,7 @@ export const usePermissions = () => {
   const assignPermissionsToRole = async (roleId: number, permissionIds: number[]): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-role`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-role`, {
         method: 'POST',
         body: { roleId, permissionIds },
         credentials: 'include',
@@ -90,7 +91,7 @@ export const usePermissions = () => {
   const assignPermissionsToUser = async (userId: number, permissionIds: number[]): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-user`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/permissions/assign-user`, {
         method: 'POST',
         body: { userId, permissionIds },
         credentials: 'include',

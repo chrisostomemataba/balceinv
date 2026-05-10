@@ -20,6 +20,8 @@ interface ApiResponse<T> {
 
 export const useCatalog = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()  
+
 
   const catalog = ref<CatalogProduct[]>([])
   const loading = ref(false)
@@ -27,7 +29,7 @@ export const useCatalog = () => {
   const fetchCatalog = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<CatalogProduct[]>>(
+      const res = await $apiFetch<ApiResponse<CatalogProduct[]>>(
         `${apiBase}/api/catalog`,
         { credentials: 'include' }
       )

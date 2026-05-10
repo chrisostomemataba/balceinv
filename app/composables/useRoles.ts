@@ -18,6 +18,7 @@ interface ApiResponse<T> {
 
 export const useRoles = () => {
   const { public: { apiBase } } = useRuntimeConfig()
+  const { $apiFetch } = useNuxtApp()
 
   const roles = ref<Role[]>([])
   const loading = ref(false)
@@ -26,7 +27,7 @@ export const useRoles = () => {
   const fetchRoles = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Role[]>>(`${apiBase}/api/roles`, {
+      const res = await $apiFetch<ApiResponse<Role[]>>(`${apiBase}/api/roles`, {
         credentials: 'include' as const,
       })
       roles.value = res.data
@@ -40,7 +41,7 @@ export const useRoles = () => {
   const fetchRole = async (id: number): Promise<Role | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Role>>(`${apiBase}/api/roles/${id}`, {
+      const res = await $apiFetch<ApiResponse<Role>>(`${apiBase}/api/roles/${id}`, {
         credentials: 'include' as const,
       })
       selectedRole.value = res.data
@@ -55,7 +56,7 @@ export const useRoles = () => {
   const createRole = async (name: string): Promise<Role | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Role>>(`${apiBase}/api/roles`, {
+      const res = await $apiFetch<ApiResponse<Role>>(`${apiBase}/api/roles`, {
         method: 'POST' as const,
         body: { name },
         credentials: 'include' as const,
@@ -74,7 +75,7 @@ export const useRoles = () => {
   const updateRole = async (id: number, name: string): Promise<Role | undefined> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<Role>>(`${apiBase}/api/roles/${id}`, {
+      const res = await $apiFetch<ApiResponse<Role>>(`${apiBase}/api/roles/${id}`, {
         method: 'PUT' as const,
         body: { name },
         credentials: 'include' as const,
@@ -94,7 +95,7 @@ export const useRoles = () => {
   const deleteRole = async (id: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/roles/${id}`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/roles/${id}`, {
         method: 'DELETE' as const,
         credentials: 'include' as const,
       })
@@ -111,7 +112,7 @@ export const useRoles = () => {
   const assignRole = async (userId: number, roleId: number): Promise<void> => {
     loading.value = true
     try {
-      const res = await $fetch<ApiResponse<null>>(`${apiBase}/api/roles/assign`, {
+      const res = await $apiFetch<ApiResponse<null>>(`${apiBase}/api/roles/assign`, {
         method: 'POST' as const,
         body: { userId, roleId },
         credentials: 'include' as const,

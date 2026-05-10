@@ -80,6 +80,7 @@ export const useReports = () => {
   const {
     public: { apiBase },
   } = useRuntimeConfig();
+  const { $apiFetch } = useNuxtApp();
 
   const loading = ref(false);
   const salesSummary = ref<SalesSummary | null>(null);
@@ -104,7 +105,7 @@ export const useReports = () => {
         ? `${apiBase}/api/reports/sales-summary?${qs}`
         : `${apiBase}/api/reports/sales-summary`;
 
-      const res = await $fetch<ApiResponse<SalesSummary>>(url, {
+      const res = await $apiFetch<ApiResponse<SalesSummary>>(url, {
         credentials: "include",
       });
       salesSummary.value = res.data;
@@ -124,7 +125,7 @@ export const useReports = () => {
       const qs = buildQuery(dateRange);
       const query = qs ? `${qs}&limit=${limit}` : `limit=${limit}`;
 
-      const res = await $fetch<ApiResponse<TopProduct[]>>(
+      const res = await $apiFetch<ApiResponse<TopProduct[]>>(
         `${apiBase}/api/reports/top-products?${query}`,
         { credentials: "include" },
       );
@@ -144,7 +145,7 @@ export const useReports = () => {
         ? `${apiBase}/api/reports/sales-by-user?${qs}`
         : `${apiBase}/api/reports/sales-by-user`;
 
-      const res = await $fetch<ApiResponse<SalesByUser[]>>(url, {
+      const res = await $apiFetch<ApiResponse<SalesByUser[]>>(url, {
         credentials: "include",
       });
       salesByUser.value = res.data;
@@ -158,7 +159,7 @@ export const useReports = () => {
   const fetchInventoryReport = async (): Promise<void> => {
     loading.value = true;
     try {
-      const res = await $fetch<ApiResponse<InventoryReport>>(
+      const res = await $apiFetch<ApiResponse<InventoryReport>>(
         `${apiBase}/api/reports/inventory`,
         { credentials: "include" },
       );
@@ -178,7 +179,7 @@ export const useReports = () => {
         ? `${apiBase}/api/reports/financial?${qs}`
         : `${apiBase}/api/reports/financial`;
 
-      const res = await $fetch<ApiResponse<FinancialReport>>(url, {
+      const res = await $apiFetch<ApiResponse<FinancialReport>>(url, {
         credentials: "include",
       });
       financialReport.value = res.data;
@@ -197,7 +198,7 @@ export const useReports = () => {
         ? `${apiBase}/api/reports/daily-trend?${qs}`
         : `${apiBase}/api/reports/daily-trend`;
 
-      const res = await $fetch<ApiResponse<DailyTrend[]>>(url, {
+      const res = await $apiFetch<ApiResponse<DailyTrend[]>>(url, {
         credentials: "include",
       });
       dailyTrend.value = res.data;
@@ -220,7 +221,7 @@ export const useReports = () => {
 
   const exportPDF = async (html: string, filename: string): Promise<void> => {
     try {
-      const response = await $fetch<Uint8Array>(
+      const response = await $apiFetch<Uint8Array>(
         `${apiBase}/api/reports/export-pdf`,
         {
           method: "POST" as const,

@@ -67,12 +67,8 @@ interface ApiResponse<T> {
 }
 
 export const useSales = () => {
-  // Read the Go server base URL from runtime config.
-  // This is set in nuxt.config.ts as runtimeConfig.public.apiBase
-  // and comes from the API_BASE_URL environment variable.
-  const {
-    public: { apiBase },
-  } = useRuntimeConfig();
+  const { public: { apiBase } } = useRuntimeConfig();
+  const { $apiFetch } = useNuxtApp();
 
   const sales = ref<Sale[]>([]);
   const loading = ref(false);
@@ -86,14 +82,13 @@ export const useSales = () => {
       const query = new URLSearchParams();
       if (filters?.start_date) query.append("startDate", filters.start_date);
       if (filters?.end_date) query.append("endDate", filters.end_date);
-      if (filters?.payment_type)
-        query.append("paymentType", filters.payment_type);
+      if (filters?.payment_type) query.append("paymentType", filters.payment_type);
       if (filters?.sale_type) query.append("saleType", filters.sale_type);
 
       const qs = query.toString();
       const url = qs ? `${apiBase}/api/sales?${qs}` : `${apiBase}/api/sales`;
 
-      const res = await $fetch<ApiResponse<Sale[]>>(url, {
+      const res = await $apiFetch<ApiResponse<Sale[]>>(url, {
         credentials: "include" as const,
       });
       sales.value = res.data;
@@ -107,12 +102,9 @@ export const useSales = () => {
   const fetchSale = async (id: number): Promise<Sale | undefined> => {
     loading.value = true;
     try {
-      const res = await $fetch<ApiResponse<Sale>>(
-        `${apiBase}/api/sales/${id}`,
-        {
-          credentials: "include" as const,
-        },
-      );
+      const res = await $apiFetch<ApiResponse<Sale>>(`${apiBase}/api/sales/${id}`, {
+        credentials: "include" as const,
+      });
       selectedSale.value = res.data;
       return res.data;
     } catch (error: any) {
@@ -123,11 +115,7 @@ export const useSales = () => {
   };
 
   const createSale = async (data: {
-    items: Array<{
-      product_id: number;
-      quantity: number;
-      is_wholesale?: boolean;
-    }>;
+    items: Array<{ product_id: number; quantity: number; is_wholesale?: boolean }>;
     payment_type: "cash" | "card" | "mobile";
     sale_type?: "retail" | "wholesale";
     amount_paid?: number;
@@ -135,7 +123,7 @@ export const useSales = () => {
   }) => {
     loading.value = true;
     try {
-      const res = await $fetch(`${apiBase}/api/sales`, {
+      const res = await $apiFetch(`${apiBase}/api/sales`, {
         method: "POST" as const,
         body: data,
         credentials: "include" as const,
@@ -156,13 +144,10 @@ export const useSales = () => {
     try {
       const query = new URLSearchParams();
       if (date) query.append("date", date.toISOString().split("T")[0]!);
-
       const qs = query.toString();
-      const url = qs
-        ? `${apiBase}/api/sales/daily?${qs}`
-        : `${apiBase}/api/sales/daily`;
+      const url = qs ? `${apiBase}/api/sales/daily?${qs}` : `${apiBase}/api/sales/daily`;
 
-      const res = await $fetch<ApiResponse<DailySalesSummary>>(url, {
+      const res = await $apiFetch<ApiResponse<DailySalesSummary>>(url, {
         credentials: "include" as const,
       });
       dailySummary.value = res.data;
@@ -173,22 +158,16 @@ export const useSales = () => {
     }
   };
 
-  const fetchMonthlySales = async (
-    year?: number,
-    month?: number,
-  ): Promise<void> => {
+  const fetchMonthlySales = async (year?: number, month?: number): Promise<void> => {
     loading.value = true;
     try {
       const query = new URLSearchParams();
       if (year) query.append("year", year.toString());
       if (month) query.append("month", month.toString());
-
       const qs = query.toString();
-      const url = qs
-        ? `${apiBase}/api/sales/monthly?${qs}`
-        : `${apiBase}/api/sales/monthly`;
+      const url = qs ? `${apiBase}/api/sales/monthly?${qs}` : `${apiBase}/api/sales/monthly`;
 
-      const res = await $fetch<ApiResponse<MonthlySalesSummary>>(url, {
+      const res = await $apiFetch<ApiResponse<MonthlySalesSummary>>(url, {
         credentials: "include" as const,
       });
       monthlySummary.value = res.data;
@@ -199,10 +178,7 @@ export const useSales = () => {
     }
   };
 
-  const fetchSalesByDateRange = async (
-    startDate: Date,
-    endDate: Date,
-  ): Promise<void> => {
+  const fetchSalesByDateRange = async (startDate: Date, endDate: Date): Promise<void> => {
     loading.value = true;
     try {
       const query = new URLSearchParams({
@@ -210,45 +186,34 @@ export const useSales = () => {
         endDate: endDate.toISOString().split("T")[0]!,
       });
 
-      const res = await $fetch<ApiResponse<Sale[]>>(
+      const res = await $apiFetch<ApiResponse<Sale[]>>(
         `${apiBase}/api/sales/date-range?${query.toString()}`,
         { credentials: "include" as const },
       );
       sales.value = res.data;
     } catch (error: any) {
-      toast.error(
-        error?.data?.message || "Failed to fetch sales for date range",
-      );
+      toast.error(error?.data?.message || "Failed to fetch sales for date range");
     } finally {
       loading.value = false;
     }
   };
 
-  const uploadSalesExcel = async (
-    file: File,
-  ): Promise<UploadResult | undefined> => {
+  const uploadSalesExcel = async (file: File): Promise<UploadResult | undefined> => {
     loading.value = true;
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await $fetch<ApiResponse<UploadResult>>(
-        `${apiBase}/api/sales/upload`,
-        {
-          method: "POST" as const,
-          body: formData,
-          credentials: "include" as const,
-        },
-      );
+      const res = await $apiFetch<ApiResponse<UploadResult>>(`${apiBase}/api/sales/upload`, {
+        method: "POST" as const,
+        body: formData,
+        credentials: "include" as const,
+      });
 
       toast.success(res.message);
-
       if (res.data.errors.length > 0) {
-        toast.warning(
-          `${res.data.errors.length} sale${res.data.errors.length > 1 ? "s" : ""} could not be imported`,
-        );
+        toast.warning(`${res.data.errors.length} sale${res.data.errors.length > 1 ? "s" : ""} could not be imported`);
       }
-
       await fetchSales();
       return res.data;
     } catch (error: any) {
@@ -260,26 +225,16 @@ export const useSales = () => {
   };
 
   const downloadTemplate = (): void => {
-    // window.open works fine here because the user expects a file download,
-    // not a JSON response. The Go server will set the correct Content-Disposition
-    // header and the browser will handle the download natively.
     window.open(`${apiBase}/api/sales/template`, "_blank");
     toast.success("Template downloaded");
   };
 
   const exportSales = (startDate?: Date, endDate?: Date): void => {
     const query = new URLSearchParams();
-    if (startDate)
-      query.append("startDate", startDate.toISOString().split("T")[0]!);
+    if (startDate) query.append("startDate", startDate.toISOString().split("T")[0]!);
     if (endDate) query.append("endDate", endDate.toISOString().split("T")[0]!);
-
     const qs = query.toString();
-    const url = qs
-      ? `${apiBase}/api/sales/export?${qs}`
-      : `${apiBase}/api/sales/export`;
-
-    window.open(url, "_blank");
-    toast.success("Sales report downloaded");
+    window.open(qs ? `${apiBase}/api/sales/export?${qs}` : `${apiBase}/api/sales/export`, "_blank");
   };
 
   return {
