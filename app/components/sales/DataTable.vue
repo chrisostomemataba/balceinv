@@ -56,15 +56,7 @@ const dateRange = ref<{ start: DateValue | null; end: DateValue | null }>({
 const selectedPayment = ref<string>('all');
 const selectedType = ref<string>('all');
 
-const startDate = computed({
-  get: () => dateRange.value.start || undefined,
-  set: (value) => { dateRange.value.start = value || null; },
-});
 
-const endDate = computed({
-  get: () => dateRange.value.end || undefined,
-  set: (value) => { dateRange.value.end = value || null; },
-});
 
 const dateValueToDate = (dateValue: any): Date | null => {
   if (!dateValue) return null;
@@ -131,11 +123,11 @@ watch(selectedType, (value) => {
           <div class="p-3 space-y-3">
             <div>
               <p class="text-sm font-medium mb-2">Start Date</p>
-              <CalendarComponent v-model="startDate as any" />
+              <CalendarComponent v-model="dateRange.start as any" />
             </div>
             <div>
               <p class="text-sm font-medium mb-2">End Date</p>
-              <CalendarComponent v-model="endDate as any" />
+              <CalendarComponent v-model="dateRange.end as any" />
             </div>
             <div class="flex gap-2">
               <Button @click="applyDateFilter" size="sm" class="flex-1">Apply</Button>
