@@ -1,68 +1,91 @@
 import { toast } from 'vue-sonner'
 
-interface Settings {
+// Company fields live in the `companies` table.
+// The backend returns them nested under `settings.company`.
+interface Company {
   id: number
-  businessName?: string | null
-  businessAddress?: string | null
-  businessPhone?: string | null
-  businessTIN?: string | null
-  receiptHeader?: string | null
-  receiptFooter?: string | null
-  businessLogo?: string | null
-  primaryColor: string
-  taxRate: number
-  currency: string
-  currencySymbol: string
-  dateFormat: string
-  receiptNumberFormat: string
-  efdEnabled: boolean
-  efdEndpoint?: string | null
-  efdApiKey?: string | null
-  efdLastTestDate?: Date | null
-  efdTestStatus?: string | null
-  lowStockThreshold: number
-  emailNotificationsEnabled: boolean
-  notificationEmail?: string | null
-  alertSoundEnabled: boolean
-  alertOnLowStock: boolean
-  alertOnOutOfStock: boolean
-  alertOnDeadStock: boolean
-  deadStockDays: number
-  printReceiptAutomatically: boolean
-  showTaxOnReceipt: boolean
-  showBarcodesOnReceipt: boolean
-  updatedBy?: number | null
-  createdAt: Date
-  updatedAt: Date
+  name: string
+  business_type: string
+  phone: string | null
+  address: string | null
+  tin: string | null
+  logo: string | null
+  receipt_header: string | null
+  receipt_footer: string | null
+  primary_color: string | null
 }
 
+// All other fields live in the `settings` table.
+// Keys match the Go json tags exactly (snake_case).
+interface Settings {
+  id: number
+  company_id: number
+  company: Company
+
+  tax_rate: number
+  currency: string
+  currency_symbol: string
+  date_format: string
+  receipt_number_format: string
+
+  efd_enabled: boolean
+  efd_endpoint: string | null
+  efd_api_key: string | null
+  efd_last_test_date: string | null
+  efd_test_status: string | null
+
+  low_stock_threshold: number
+  email_notifications_enabled: boolean
+  notification_email: string | null
+  alert_sound_enabled: boolean
+  alert_on_low_stock: boolean
+  alert_on_out_of_stock: boolean
+  alert_on_dead_stock: boolean
+  dead_stock_days: number
+
+  print_receipt_automatically: boolean
+  show_tax_on_receipt: boolean
+  show_barcodes_on_receipt: boolean
+
+  updated_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+// Keys match Go's UpdateSettingsInput json tags exactly (snake_case).
+// Business fields go to the `companies` table via the service layer.
+// All other fields go to the `settings` table.
 interface UpdateSettingsInput {
-  businessName?: string
-  businessAddress?: string
-  businessPhone?: string
-  businessTIN?: string
-  receiptHeader?: string
-  receiptFooter?: string
-  primaryColor?: string
-  taxRate?: number
+  // → companies table
+  business_name?: string
+  business_address?: string
+  business_phone?: string
+  business_tin?: string
+  receipt_header?: string
+  receipt_footer?: string
+  // system → settings table
+  tax_rate?: number
   currency?: string
-  currencySymbol?: string
-  dateFormat?: string
-  receiptNumberFormat?: string
-  efdEnabled?: boolean
-  efdEndpoint?: string
-  efdApiKey?: string
-  lowStockThreshold?: number
-  emailNotificationsEnabled?: boolean
-  notificationEmail?: string
-  alertSoundEnabled?: boolean
-  alertOnLowStock?: boolean
-  alertOnOutOfStock?: boolean
-  alertOnDeadStock?: boolean
-  deadStockDays?: number
-  printReceiptAutomatically?: boolean
-  showTaxOnReceipt?: boolean
-  showBarcodesOnReceipt?: boolean
+  currency_symbol?: string
+  date_format?: string
+  receipt_number_format?: string
+  // EFD → settings table
+  efd_enabled?: boolean
+  efd_endpoint?: string
+  efd_api_key?: string
+  // notifications → settings table
+  low_stock_threshold?: number
+  email_notifications_enabled?: boolean
+  notification_email?: string
+  alert_sound_enabled?: boolean
+  alert_on_low_stock?: boolean
+  alert_on_out_of_stock?: boolean
+  alert_on_dead_stock?: boolean
+  dead_stock_days?: number
+  // hardware / receipt → settings table
+  print_receipt_automatically?: boolean
+  show_tax_on_receipt?: boolean
+  show_barcodes_on_receipt?: boolean
 }
 
 interface ApiResponse<T> {
@@ -93,6 +116,9 @@ export const useSettings = () => {
     }
   }
 
+  // The backend accepts a single PUT /api/settings.
+  // The service layer internally splits fields between companies and settings tables.
+  // We just pass the correct snake_case keys and the backend handles routing.
   const updateSettings = async (data: UpdateSettingsInput): Promise<void> => {
     loading.value = true
     try {
@@ -118,13 +144,11 @@ export const useSettings = () => {
         `${apiBase}/api/settings/test-efd`,
         { method: 'POST', body: { endpoint, apiKey }, credentials: 'include' }
       )
-
       if (res.data.status === 'success') {
         toast.success(res.message)
         await fetchSettings()
         return true
       }
-
       toast.error(res.data.message)
       return false
     } catch (error: any) {
@@ -140,12 +164,10 @@ export const useSettings = () => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-
       const res = await $apiFetch<ApiResponse<{ logoUrl: string }>>(
         `${apiBase}/api/settings/upload-logo`,
         { method: 'POST', body: formData, credentials: 'include' }
       )
-
       toast.success(res.message)
       await fetchSettings()
       return res.data.logoUrl
@@ -164,6 +186,6 @@ export const useSettings = () => {
     fetchSettings,
     updateSettings,
     testEFDConnection,
-    uploadLogo
+    uploadLogo,
   }
 }

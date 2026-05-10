@@ -1,717 +1,679 @@
 <script setup lang="ts">
-import { 
-  Building2, 
-  Settings as SettingsIcon, 
-  Wifi, 
-  Bell, 
-  Receipt, 
+import {
+  Building2,
+  Settings2,
+  Wifi,
+  Bell,
+  Printer,
+  Calculator,
+  Save,
   Upload,
+  Phone,
+  MapPin,
+  Hash,
+  Mail,
+  Volume2,
   TestTube,
-  Palette,
-  Save
-} from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
+} from 'lucide-vue-next'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { useSettings } from '~/composables/useSettings';
-import { toast } from 'vue-sonner';
+} from '@/components/ui/select'
+import { useSettings } from '~/composables/useSettings'
 
-const { settings, loading, testing, fetchSettings, updateSettings, testEFDConnection, uploadLogo } = useSettings();
+definePageMeta({ layout: 'default' })
 
+const { settings, loading, testing, fetchSettings, updateSettings, testEFDConnection, uploadLogo } =
+  useSettings()
+
+// ─── Business form ─────────────────────────────────────────────────────────
+// Source: settings.company.* (companies table)
 const businessForm = ref({
-  businessName: '',
-  businessAddress: '',
-  businessPhone: '',
-  businessTIN: '',
-  receiptHeader: '',
-  receiptFooter: '',
-  primaryColor: '#3b82f6'
-});
+  business_name: '',
+  business_phone: '',
+  business_address: '',
+  business_tin: '',
+  receipt_header: '',
+  receipt_footer: '',
+})
 
+// ─── System form ────────────────────────────────────────────────────────────
+// Source: settings.* (settings table)
 const systemForm = ref({
-  taxRate: 18,
+  tax_rate: 18,
   currency: 'TZS',
-  currencySymbol: 'TZS',
-  dateFormat: 'DD/MM/YYYY',
-  receiptNumberFormat: 'SALE-{TIMESTAMP}-{COUNTER}'
-});
+  currency_symbol: 'TZS',
+  date_format: 'DD/MM/YYYY',
+  receipt_number_format: 'SALE-{DATE}-{COUNTER}',
+})
 
+// ─── Hardware form ──────────────────────────────────────────────────────────
+// changeCounterEnabled and printerEnabled are UI-only toggles (no backend field yet).
+// The three receipt booleans do map to settings table columns.
+const hardwareForm = ref({
+  changeCounterEnabled: false,
+  printerEnabled: false,
+  printerPort: 'USB',
+  printerModel: '',
+  print_receipt_automatically: false,
+  show_tax_on_receipt: true,
+  show_barcodes_on_receipt: false,
+})
+
+// ─── EFD form ───────────────────────────────────────────────────────────────
+// Source: settings.* (settings table)
 const efdForm = ref({
-  efdEnabled: false,
-  efdEndpoint: '',
-  efdApiKey: ''
-});
+  efd_enabled: false,
+  efd_endpoint: '',
+  efd_api_key: '',
+})
 
+// ─── Notification form ───────────────────────────────────────────────────────
+// Source: settings.* (settings table)
 const notificationForm = ref({
-  lowStockThreshold: 5,
-  emailNotificationsEnabled: false,
-  notificationEmail: '',
-  alertSoundEnabled: true,
-  alertOnLowStock: true,
-  alertOnOutOfStock: true,
-  alertOnDeadStock: false,
-  deadStockDays: 30
-});
+  low_stock_threshold: 5,
+  email_notifications_enabled: false,
+  notification_email: '',
+  alert_sound_enabled: true,
+  alert_on_low_stock: true,
+  alert_on_out_of_stock: true,
+  alert_on_dead_stock: false,
+  dead_stock_days: 30,
+})
 
-const receiptForm = ref({
-  printReceiptAutomatically: false,
-  showTaxOnReceipt: true,
-  showBarcodesOnReceipt: false
-});
+// ─── Logo ────────────────────────────────────────────────────────────────────
+const logoPreview = ref<string | null>(null)
+const logoFile = ref<File | null>(null)
+const logoInputRef = ref<HTMLInputElement | null>(null)
 
-const logoPreview = ref<string | null>(null);
-const logoFile = ref<File | null>(null);
+// ─── Per-section saving state ─────────────────────────────────────────────────
+const savingBusiness = ref(false)
+const savingSystem = ref(false)
+const savingHardware = ref(false)
+const savingEfd = ref(false)
+const savingNotifications = ref(false)
 
-onMounted(async () => {
-  await fetchSettings();
-  loadSettingsIntoForms();
-});
-
-watch(() => settings.value, () => {
-  if (settings.value) {
-    loadSettingsIntoForms();
-  }
-});
-
-const loadSettingsIntoForms = () => {
-  if (!settings.value) return;
+// ─── Fill every form from the API response ────────────────────────────────────
+// settings.company.* → businessForm
+// settings.*         → everything else
+const loadForms = () => {
+  if (!settings.value) return
+  const s = settings.value
+  const c = s.company // nested company object from the backend
 
   businessForm.value = {
-    businessName: settings.value.businessName || '',
-    businessAddress: settings.value.businessAddress || '',
-    businessPhone: settings.value.businessPhone || '',
-    businessTIN: settings.value.businessTIN || '',
-    receiptHeader: settings.value.receiptHeader || '',
-    receiptFooter: settings.value.receiptFooter || '',
-    primaryColor: settings.value.primaryColor || '#3b82f6'
-  };
+    business_name: c.name ?? '',
+    business_phone: c.phone ?? '',
+    business_address: c.address ?? '',
+    business_tin: c.tin ?? '',
+    receipt_header: c.receipt_header ?? '',
+    receipt_footer: c.receipt_footer ?? '',
+  }
 
   systemForm.value = {
-    taxRate: settings.value.taxRate || 18,
-    currency: settings.value.currency || 'TZS',
-    currencySymbol: settings.value.currencySymbol || 'TZS',
-    dateFormat: settings.value.dateFormat || 'DD/MM/YYYY',
-    receiptNumberFormat: settings.value.receiptNumberFormat || 'SALE-{TIMESTAMP}-{COUNTER}'
-  };
+    tax_rate: s.tax_rate ?? 18,
+    currency: s.currency ?? 'TZS',
+    currency_symbol: s.currency_symbol ?? 'TZS',
+    date_format: s.date_format ?? 'DD/MM/YYYY',
+    receipt_number_format: s.receipt_number_format ?? 'SALE-{DATE}-{COUNTER}',
+  }
 
   efdForm.value = {
-    efdEnabled: settings.value.efdEnabled || false,
-    efdEndpoint: settings.value.efdEndpoint || '',
-    efdApiKey: settings.value.efdApiKey || ''
-  };
+    efd_enabled: s.efd_enabled ?? false,
+    efd_endpoint: s.efd_endpoint ?? '',
+    efd_api_key: s.efd_api_key ?? '',
+  }
 
   notificationForm.value = {
-    lowStockThreshold: settings.value.lowStockThreshold || 5,
-    emailNotificationsEnabled: settings.value.emailNotificationsEnabled || false,
-    notificationEmail: settings.value.notificationEmail || '',
-    alertSoundEnabled: settings.value.alertSoundEnabled !== undefined ? settings.value.alertSoundEnabled : true,
-    alertOnLowStock: settings.value.alertOnLowStock !== undefined ? settings.value.alertOnLowStock : true,
-    alertOnOutOfStock: settings.value.alertOnOutOfStock !== undefined ? settings.value.alertOnOutOfStock : true,
-    alertOnDeadStock: settings.value.alertOnDeadStock || false,
-    deadStockDays: settings.value.deadStockDays || 30
-  };
-
-  receiptForm.value = {
-    printReceiptAutomatically: settings.value.printReceiptAutomatically || false,
-    showTaxOnReceipt: settings.value.showTaxOnReceipt !== undefined ? settings.value.showTaxOnReceipt : true,
-    showBarcodesOnReceipt: settings.value.showBarcodesOnReceipt || false
-  };
-
-  logoPreview.value = settings.value.businessLogo || null;
-};
-
-const handleLogoUpload = (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  if (input.files && input.files[0]) {
-    logoFile.value = input.files[0];
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      logoPreview.value = e.target?.result as string;
-    };
-    reader.readAsDataURL(input.files[0]);
+    low_stock_threshold: s.low_stock_threshold ?? 5,
+    email_notifications_enabled: s.email_notifications_enabled ?? false,
+    notification_email: s.notification_email ?? '',
+    alert_sound_enabled: s.alert_sound_enabled ?? true,
+    alert_on_low_stock: s.alert_on_low_stock ?? true,
+    alert_on_out_of_stock: s.alert_on_out_of_stock ?? true,
+    alert_on_dead_stock: s.alert_on_dead_stock ?? false,
+    dead_stock_days: s.dead_stock_days ?? 30,
   }
-};
 
-const saveBusinessSettings = async () => {
+  hardwareForm.value.print_receipt_automatically = s.print_receipt_automatically ?? false
+  hardwareForm.value.show_tax_on_receipt = s.show_tax_on_receipt ?? true
+  hardwareForm.value.show_barcodes_on_receipt = s.show_barcodes_on_receipt ?? false
+
+  // Show current logo if one was already uploaded
+  if (c.logo) logoPreview.value = c.logo
+}
+
+onMounted(async () => {
+  await fetchSettings()
+  loadForms()
+})
+
+// Re-populate whenever settings refreshes (e.g. after a save returns the updated record)
+watch(() => settings.value, () => loadForms())
+
+// ─── Logo handlers ────────────────────────────────────────────────────────────
+const onLogoChange = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  logoFile.value = file
+  const reader = new FileReader()
+  reader.onload = (e) => { logoPreview.value = e.target?.result as string }
+  reader.readAsDataURL(file)
+}
+
+// ─── Save: Business ──────────────────────────────────────────────────────────
+// Sends: business_name, business_phone, business_address, business_tin,
+//        receipt_header, receipt_footer  →  companies table via service layer
+// Logo uses a separate multipart endpoint: POST /api/settings/upload-logo
+const saveBusiness = async () => {
+  savingBusiness.value = true
   try {
     if (logoFile.value) {
-      await uploadLogo(logoFile.value);
-      logoFile.value = null;
+      await uploadLogo(logoFile.value)
+      logoFile.value = null
     }
-    
-    await updateSettings(businessForm.value);
-  } catch (error) {
-    console.error('Failed to save business settings:', error);
+    await updateSettings({ ...businessForm.value })
+  } finally {
+    savingBusiness.value = false
   }
-};
+}
 
-const saveSystemSettings = async () => {
+// ─── Save: System ────────────────────────────────────────────────────────────
+// Sends: tax_rate, currency, currency_symbol, date_format, receipt_number_format
+// → settings table
+const saveSystem = async () => {
+  savingSystem.value = true
   try {
-    await updateSettings(systemForm.value);
-  } catch (error) {
-    console.error('Failed to save system settings:', error);
+    await updateSettings({ ...systemForm.value })
+  } finally {
+    savingSystem.value = false
   }
-};
+}
 
-const saveEFDSettings = async () => {
+// ─── Save: Hardware ──────────────────────────────────────────────────────────
+// changeCounterEnabled and printerEnabled are local UI state only.
+// Only the three mapped receipt booleans are sent to the backend.
+const saveHardware = async () => {
+  savingHardware.value = true
   try {
-    await updateSettings(efdForm.value);
-  } catch (error) {
-    console.error('Failed to save EFD settings:', error);
+    await updateSettings({
+      print_receipt_automatically: hardwareForm.value.print_receipt_automatically,
+      show_tax_on_receipt: hardwareForm.value.show_tax_on_receipt,
+      show_barcodes_on_receipt: hardwareForm.value.show_barcodes_on_receipt,
+    })
+  } finally {
+    savingHardware.value = false
   }
-};
+}
 
-const saveNotificationSettings = async () => {
+// ─── Save: EFD ───────────────────────────────────────────────────────────────
+// Sends: efd_enabled, efd_endpoint, efd_api_key → settings table
+const saveEfd = async () => {
+  savingEfd.value = true
   try {
-    await updateSettings(notificationForm.value);
-  } catch (error) {
-    console.error('Failed to save notification settings:', error);
+    await updateSettings({ ...efdForm.value })
+  } finally {
+    savingEfd.value = false
   }
-};
+}
 
-const saveReceiptSettings = async () => {
+// ─── Save: Notifications ─────────────────────────────────────────────────────
+// Sends all notification fields → settings table
+const saveNotifications = async () => {
+  savingNotifications.value = true
   try {
-    await updateSettings(receiptForm.value);
-  } catch (error) {
-    console.error('Failed to save receipt settings:', error);
+    await updateSettings({ ...notificationForm.value })
+  } finally {
+    savingNotifications.value = false
   }
-};
+}
 
 const handleTestEFD = async () => {
-  if (!efdForm.value.efdEndpoint || !efdForm.value.efdApiKey) {
-    toast.error('Please enter EFD endpoint and API key');
-    return;
-  }
-  
-  await testEFDConnection(efdForm.value.efdEndpoint, efdForm.value.efdApiKey);
-};
+  await testEFDConnection(efdForm.value.efd_endpoint, efdForm.value.efd_api_key)
+}
 
-const efdStatusBadge = computed(() => {
-  if (!settings.value?.efdTestStatus) return { variant: 'outline', text: 'Not Tested' };
-  
-  switch (settings.value.efdTestStatus) {
-    case 'success':
-      return { variant: 'default', text: 'Connected' };
-    case 'failed':
-      return { variant: 'destructive', text: 'Failed' };
-    default:
-      return { variant: 'secondary', text: 'Pending' };
-  }
-});
+// ─── EFD badge ────────────────────────────────────────────────────────────────
+const efdBadgeVariant = computed(() => {
+  if (!settings.value?.efd_enabled) return 'secondary' as const
+  return settings.value.efd_test_status === 'success' ? 'default' as const : 'destructive' as const
+})
+const efdBadgeLabel = computed(() => {
+  if (!settings.value?.efd_enabled) return 'Disabled'
+  return settings.value.efd_test_status === 'success' ? 'Connected' : 'Not Tested'
+})
 </script>
 
 <template>
-  <div class="container mx-auto py-6 px-4 space-y-6">
+  <div class="flex flex-col gap-6 p-6 max-w-4xl">
+
     <div>
-      <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
-      <p class="text-muted-foreground mt-1">
-        Configure your business and system preferences
-      </p>
+      <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
+      <p class="text-sm text-muted-foreground mt-1">Manage your business and system configuration</p>
     </div>
 
-    <Tabs default-value="business" class="space-y-4">
+    <!-- Skeleton while first load -->
+    <div v-if="loading && !settings" class="flex flex-col gap-3">
+      <div v-for="i in 4" :key="i" class="h-28 rounded-lg bg-muted animate-pulse" />
+    </div>
+
+    <Tabs v-else default-value="business">
       <TabsList>
         <TabsTrigger value="business">
-          <Building2 class="h-4 w-4 mr-2" />
-          Business
+          <Building2 class="size-4 mr-2" />Business
         </TabsTrigger>
         <TabsTrigger value="system">
-          <SettingsIcon class="h-4 w-4 mr-2" />
-          System
+          <Settings2 class="size-4 mr-2" />System
+        </TabsTrigger>
+        <TabsTrigger value="hardware">
+          <Printer class="size-4 mr-2" />Hardware
         </TabsTrigger>
         <TabsTrigger value="efd">
-          <Wifi class="h-4 w-4 mr-2" />
-          EFD
+          <Wifi class="size-4 mr-2" />EFD
         </TabsTrigger>
         <TabsTrigger value="notifications">
-          <Bell class="h-4 w-4 mr-2" />
-          Notifications
-        </TabsTrigger>
-        <TabsTrigger value="receipts">
-          <Receipt class="h-4 w-4 mr-2" />
-          Receipts
+          <Bell class="size-4 mr-2" />Notifications
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="business" class="space-y-4">
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- BUSINESS                                       -->
+      <!-- ══════════════════════════════════════════════ -->
+      <TabsContent value="business" class="flex flex-col gap-4 mt-4">
+
+        <!-- Logo card -->
         <Card>
-          <CardHeader>
-            <CardTitle>Business Information</CardTitle>
-            <CardDescription>
-              Configure your business details and branding
-            </CardDescription>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Business Logo</CardTitle>
+            <CardDescription>Displayed on receipts and reports</CardDescription>
           </CardHeader>
           <CardContent>
-            <div v-if="loading" class="space-y-4">
-              <Skeleton class="h-10 w-full" v-for="i in 6" :key="i" />
-            </div>
-            <div v-else class="space-y-6">
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <Label for="logo">Business Logo</Label>
-                  <div class="flex items-center gap-4">
-                    <div v-if="logoPreview" class="w-24 h-24 border rounded-lg flex items-center justify-center overflow-hidden">
-                      <img :src="logoPreview" alt="Logo" class="max-w-full max-h-full object-contain" />
-                    </div>
-                    <div v-else class="w-24 h-24 border rounded-lg flex items-center justify-center bg-muted">
-                      <Building2 class="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <Input
-                        id="logo"
-                        type="file"
-                        accept="image/*"
-                        @change="handleLogoUpload"
-                        class="max-w-xs"
-                      />
-                      <p class="text-xs text-muted-foreground mt-1">
-                        PNG, JPG up to 2MB
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <Label for="primaryColor">Primary Color</Label>
-                  <div class="flex items-center gap-2">
-                    <Input
-                      id="primaryColor"
-                      v-model="businessForm.primaryColor"
-                      type="color"
-                      class="w-20 h-10"
-                    />
-                    <Input
-                      v-model="businessForm.primaryColor"
-                      placeholder="#3b82f6"
-                      class="flex-1"
-                    />
-                    <div 
-                      class="w-10 h-10 rounded border"
-                      :style="{ backgroundColor: businessForm.primaryColor }"
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div class="space-y-2">
-                    <Label for="businessName">Business Name</Label>
-                    <Input
-                      id="businessName"
-                      v-model="businessForm.businessName"
-                      placeholder="Your Business Name"
-                    />
-                  </div>
-
-                  <div class="space-y-2">
-                    <Label for="businessPhone">Phone Number</Label>
-                    <Input
-                      id="businessPhone"
-                      v-model="businessForm.businessPhone"
-                      placeholder="+255 XXX XXX XXX"
-                    />
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <Label for="businessAddress">Address</Label>
-                  <Textarea
-                    id="businessAddress"
-                    v-model="businessForm.businessAddress"
-                    placeholder="Business address"
-                    rows="3"
-                  />
-                </div>
-
-                <div class="space-y-2">
-                  <Label for="businessTIN">Tax ID (TIN)</Label>
-                  <Input
-                    id="businessTIN"
-                    v-model="businessForm.businessTIN"
-                    placeholder="123-456-789"
-                  />
-                </div>
-
-                <Separator />
-
-                <div class="space-y-2">
-                  <Label for="receiptHeader">Receipt Header</Label>
-                  <Textarea
-                    id="receiptHeader"
-                    v-model="businessForm.receiptHeader"
-                    placeholder="Text to appear at the top of receipts"
-                    rows="2"
-                  />
-                </div>
-
-                <div class="space-y-2">
-                  <Label for="receiptFooter">Receipt Footer</Label>
-                  <Textarea
-                    id="receiptFooter"
-                    v-model="businessForm.receiptFooter"
-                    placeholder="Text to appear at the bottom of receipts"
-                    rows="2"
-                  />
-                </div>
+            <div class="flex items-center gap-4">
+              <div class="size-20 rounded-lg border bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                <img v-if="logoPreview" :src="logoPreview" alt="Logo" class="size-full object-contain" />
+                <Building2 v-else class="size-8 text-muted-foreground" />
               </div>
-
-              <div class="flex justify-end">
-                <Button @click="saveBusinessSettings" :disabled="loading">
-                  <Save class="mr-2 h-4 w-4" />
-                  Save Changes
+              <div class="flex flex-col gap-2">
+                <input ref="logoInputRef" type="file" accept="image/png,image/jpeg" class="hidden" @change="onLogoChange" />
+                <Button variant="outline" size="sm" @click="logoInputRef?.click()">
+                  <Upload class="size-4 mr-2" />Choose image
                 </Button>
+                <p class="text-xs text-muted-foreground">PNG or JPG · max 2 MB</p>
+                <p v-if="logoFile" class="text-xs text-muted-foreground truncate max-w-48">{{ logoFile.name }}</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <!-- Details card -->
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Business Details</CardTitle>
+            <CardDescription>Saved to your company profile — shown on receipts and reports</CardDescription>
+          </CardHeader>
+          <CardContent class="flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <Label>Business Name</Label>
+                <Input v-model="businessForm.business_name" placeholder="Acme Ltd." />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label>Phone Number</Label>
+                <div class="relative">
+                  <Phone class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input v-model="businessForm.business_phone" class="pl-9" placeholder="+255 XXX XXX XXX" />
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5 max-w-xs">
+              <Label>TIN Number</Label>
+              <div class="relative">
+                <Hash class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input v-model="businessForm.business_tin" class="pl-9" placeholder="123-456-789" />
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <Label>Address</Label>
+              <div class="relative">
+                <MapPin class="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <Textarea v-model="businessForm.business_address" class="pl-9 min-h-20 resize-none" placeholder="Street, City, Region" />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div class="flex flex-col gap-1.5">
+              <Label>Receipt Header</Label>
+              <Textarea v-model="businessForm.receipt_header" class="min-h-16 resize-none" placeholder="e.g. Thank you for shopping with us!" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label>Receipt Footer</Label>
+              <Textarea v-model="businessForm.receipt_footer" class="min-h-16 resize-none" placeholder="e.g. Goods sold are not returnable." />
+            </div>
+
+            <div class="flex justify-end pt-1">
+              <Button :disabled="savingBusiness" @click="saveBusiness">
+                <Save class="size-4 mr-2" />
+                {{ savingBusiness ? 'Saving…' : 'Save Business Info' }}
+              </Button>
             </div>
           </CardContent>
         </Card>
       </TabsContent>
 
-      <TabsContent value="system" class="space-y-4">
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- SYSTEM                                         -->
+      <!-- ══════════════════════════════════════════════ -->
+      <TabsContent value="system" class="flex flex-col gap-4 mt-4">
         <Card>
-          <CardHeader>
-            <CardTitle>System Configuration</CardTitle>
-            <CardDescription>
-              Configure system-wide settings
-            </CardDescription>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Currency &amp; Tax</CardTitle>
+            <CardDescription>Applied to all sales and reports</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div v-if="loading" class="space-y-4">
-              <Skeleton class="h-10 w-full" v-for="i in 5" :key="i" />
+          <CardContent class="flex flex-col gap-4">
+            <div class="grid grid-cols-3 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <Label>Currency Code</Label>
+                <Select v-model="systemForm.currency">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TZS">TZS — Tanzanian Shilling</SelectItem>
+                    <SelectItem value="USD">USD — US Dollar</SelectItem>
+                    <SelectItem value="KES">KES — Kenyan Shilling</SelectItem>
+                    <SelectItem value="UGX">UGX — Ugandan Shilling</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label>Currency Symbol</Label>
+                <Input v-model="systemForm.currency_symbol" placeholder="TZS" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label>Tax Rate (%)</Label>
+                <Input v-model.number="systemForm.tax_rate" type="number" min="0" max="100" />
+              </div>
             </div>
-            <div v-else class="space-y-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-2">
-                  <Label for="taxRate">Tax Rate (%)</Label>
-                  <Input
-                    id="taxRate"
-                    v-model="systemForm.taxRate"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                  />
-                </div>
+          </CardContent>
+        </Card>
 
-                <div class="space-y-2">
-                  <Label for="currency">Currency</Label>
-                  <Select v-model="systemForm.currency">
-                    <SelectTrigger id="currency">
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TZS">TZS - Tanzanian Shilling</SelectItem>
-                      <SelectItem value="USD">USD - US Dollar</SelectItem>
-                      <SelectItem value="EUR">EUR - Euro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Date &amp; Receipt Format</CardTitle>
+            <CardDescription>Controls how dates and receipt numbers are displayed</CardDescription>
+          </CardHeader>
+          <CardContent class="flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <Label>Date Format</Label>
+                <Select v-model="systemForm.date_format">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                    <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                    <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-2">
-                  <Label for="dateFormat">Date Format</Label>
-                  <Select v-model="systemForm.dateFormat">
-                    <SelectTrigger id="dateFormat">
-                      <SelectValue placeholder="Select format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                      <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div class="space-y-2">
-                  <Label for="currencySymbol">Currency Symbol</Label>
-                  <Input
-                    id="currencySymbol"
-                    v-model="systemForm.currencySymbol"
-                    placeholder="TZS"
-                  />
-                </div>
+              <div class="flex flex-col gap-1.5">
+                <Label>Receipt Number Format</Label>
+                <Input v-model="systemForm.receipt_number_format" placeholder="SALE-{DATE}-{COUNTER}" />
+                <p class="text-xs text-muted-foreground">Tokens: <code class="text-xs">{DATE}</code> · <code class="text-xs">{COUNTER}</code></p>
               </div>
-
-              <div class="space-y-2">
-                <Label for="receiptNumberFormat">Receipt Number Format</Label>
-                <Input
-                  id="receiptNumberFormat"
-                  v-model="systemForm.receiptNumberFormat"
-                  placeholder="SALE-{TIMESTAMP}-{COUNTER}"
-                />
-                <p class="text-xs text-muted-foreground">
-                  Use {TIMESTAMP} and {COUNTER} as placeholders
-                </p>
-              </div>
-
-              <div class="flex justify-end">
-                <Button @click="saveSystemSettings" :disabled="loading">
-                  <Save class="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
-              </div>
+            </div>
+            <div class="flex justify-end pt-1">
+              <Button :disabled="savingSystem" @click="saveSystem">
+                <Save class="size-4 mr-2" />
+                {{ savingSystem ? 'Saving…' : 'Save System Settings' }}
+              </Button>
             </div>
           </CardContent>
         </Card>
       </TabsContent>
 
-      <TabsContent value="efd" class="space-y-4">
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- HARDWARE                                       -->
+      <!-- ══════════════════════════════════════════════ -->
+      <TabsContent value="hardware" class="flex flex-col gap-4 mt-4">
+
         <Card>
-          <CardHeader>
-            <CardTitle class="flex items-center justify-between">
-              <span>EFD Integration (TRA)</span>
-              <Badge :variant="efdStatusBadge.variant as any">
-                {{ efdStatusBadge.text }}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Configure connection to TRA's EFD system
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div v-if="loading" class="space-y-4">
-              <Skeleton class="h-10 w-full" v-for="i in 4" :key="i" />
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle class="text-base">Change Counter</CardTitle>
+                <CardDescription class="mt-0.5">Calculates and shows change owed to the customer at checkout</CardDescription>
+              </div>
+              <Switch v-model:checked="hardwareForm.changeCounterEnabled" />
             </div>
-            <div v-else class="space-y-6">
-              <div class="flex items-center justify-between p-4 border rounded-lg">
+          </CardHeader>
+          <CardContent v-if="hardwareForm.changeCounterEnabled">
+            <div class="rounded-md border bg-muted/40 p-3 flex items-start gap-2">
+              <Calculator class="size-4 mt-0.5 text-muted-foreground shrink-0" />
+              <p class="text-sm text-muted-foreground">When enabled, cashiers will see a <strong>Cash Received</strong> field at checkout and the system will display change automatically.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle class="text-base">Thermal Receipt Printer</CardTitle>
+                <CardDescription class="mt-0.5">Connect a USB or network thermal printer</CardDescription>
+              </div>
+              <Switch v-model:checked="hardwareForm.printerEnabled" />
+            </div>
+          </CardHeader>
+          <CardContent v-if="hardwareForm.printerEnabled" class="flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <Label>Connection Type</Label>
+                <Select v-model="hardwareForm.printerPort">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USB">USB</SelectItem>
+                    <SelectItem value="Network">Network (LAN)</SelectItem>
+                    <SelectItem value="Bluetooth">Bluetooth</SelectItem>
+                    <SelectItem value="Serial">Serial Port</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label>Printer Model <span class="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input v-model="hardwareForm.printerModel" placeholder="e.g. Epson TM-T20III" />
+              </div>
+            </div>
+
+            <Separator />
+
+            <p class="text-sm font-medium">Receipt Options</p>
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center justify-between">
                 <div>
-                  <p class="font-medium">Enable EFD</p>
-                  <p class="text-sm text-muted-foreground">
-                    Send sales data to TRA automatically
-                  </p>
+                  <p class="text-sm">Print automatically after sale</p>
+                  <p class="text-xs text-muted-foreground">No prompt — prints immediately on completion</p>
                 </div>
-                <Switch v-model:checked="efdForm.efdEnabled" />
+                <Switch v-model:checked="hardwareForm.print_receipt_automatically" />
               </div>
-
-              <div class="space-y-2">
-                <Label for="efdEndpoint">EFD Endpoint URL</Label>
-                <Input
-                  id="efdEndpoint"
-                  v-model="efdForm.efdEndpoint"
-                  placeholder="https://api.efd.tra.go.tz/..."
-                  :disabled="!efdForm.efdEnabled"
-                />
-              </div>
-
-              <div class="space-y-2">
-                <Label for="efdApiKey">API Key</Label>
-                <Input
-                  id="efdApiKey"
-                  v-model="efdForm.efdApiKey"
-                  type="password"
-                  placeholder="Your EFD API key"
-                  :disabled="!efdForm.efdEnabled"
-                />
-              </div>
-
-              <div v-if="settings?.efdLastTestDate" class="p-3 bg-muted rounded-lg">
-                <p class="text-sm">
-                  <span class="font-medium">Last tested:</span>
-                  {{ new Date(settings.efdLastTestDate).toLocaleString() }}
-                </p>
-              </div>
-
-              <div class="flex justify-between">
-                <Button 
-                  @click="handleTestEFD" 
-                  variant="outline"
-                  :disabled="!efdForm.efdEnabled || testing || loading"
-                >
-                  <TestTube class="mr-2 h-4 w-4" />
-                  Test Connection
-                </Button>
-                <Button @click="saveEFDSettings" :disabled="loading">
-                  <Save class="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="notifications" class="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Notification Preferences</CardTitle>
-            <CardDescription>
-              Configure alerts and notifications
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div v-if="loading" class="space-y-4">
-              <Skeleton class="h-10 w-full" v-for="i in 6" :key="i" />
-            </div>
-            <div v-else class="space-y-6">
-              <div class="space-y-2">
-                <Label for="lowStockThreshold">Default Low Stock Threshold</Label>
-                <Input
-                  id="lowStockThreshold"
-                  v-model="notificationForm.lowStockThreshold"
-                  type="number"
-                  min="0"
-                />
-              </div>
-
-              <Separator />
-
-              <div class="space-y-4">
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Alert Sound</p>
-                    <p class="text-sm text-muted-foreground">
-                      Play sound for notifications
-                    </p>
-                  </div>
-                  <Switch v-model:checked="notificationForm.alertSoundEnabled" />
-                </div>
-
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Low Stock Alerts</p>
-                    <p class="text-sm text-muted-foreground">
-                      Notify when stock is low
-                    </p>
-                  </div>
-                  <Switch v-model:checked="notificationForm.alertOnLowStock" />
-                </div>
-
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Out of Stock Alerts</p>
-                    <p class="text-sm text-muted-foreground">
-                      Notify when stock is depleted
-                    </p>
-                  </div>
-                  <Switch v-model:checked="notificationForm.alertOnOutOfStock" />
-                </div>
-
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Dead Stock Alerts</p>
-                    <p class="text-sm text-muted-foreground">
-                      Notify for products with no sales
-                    </p>
-                  </div>
-                  <Switch v-model:checked="notificationForm.alertOnDeadStock" />
-                </div>
-              </div>
-
-              <div v-if="notificationForm.alertOnDeadStock" class="space-y-2">
-                <Label for="deadStockDays">Dead Stock Threshold (Days)</Label>
-                <Input
-                  id="deadStockDays"
-                  v-model="notificationForm.deadStockDays"
-                  type="number"
-                  min="1"
-                />
-                <p class="text-xs text-muted-foreground">
-                  Products with no sales for this many days will be flagged
-                </p>
-              </div>
-
-              <Separator />
-
-              <div class="flex items-center justify-between p-4 border rounded-lg">
+              <div class="flex items-center justify-between">
                 <div>
-                  <p class="font-medium">Email Notifications</p>
-                  <p class="text-sm text-muted-foreground">
-                    Send alerts via email
-                  </p>
+                  <p class="text-sm">Show tax on receipt</p>
+                  <p class="text-xs text-muted-foreground">Display VAT as a separate line item</p>
                 </div>
-                <Switch v-model:checked="notificationForm.emailNotificationsEnabled" />
+                <Switch v-model:checked="hardwareForm.show_tax_on_receipt" />
               </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm">Print barcodes on receipt</p>
+                  <p class="text-xs text-muted-foreground">Include product barcodes below line items</p>
+                </div>
+                <Switch v-model:checked="hardwareForm.show_barcodes_on_receipt" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <div v-if="notificationForm.emailNotificationsEnabled" class="space-y-2">
-                <Label for="notificationEmail">Notification Email</Label>
-                <Input
-                  id="notificationEmail"
-                  v-model="notificationForm.notificationEmail"
-                  type="email"
-                  placeholder="alerts@yourbusiness.com"
-                />
-              </div>
+        <div class="flex justify-end">
+          <Button :disabled="savingHardware" @click="saveHardware">
+            <Save class="size-4 mr-2" />
+            {{ savingHardware ? 'Saving…' : 'Save Hardware Settings' }}
+          </Button>
+        </div>
+      </TabsContent>
 
-              <div class="flex justify-end">
-                <Button @click="saveNotificationSettings" :disabled="loading">
-                  <Save class="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- EFD                                            -->
+      <!-- ══════════════════════════════════════════════ -->
+      <TabsContent value="efd" class="flex flex-col gap-4 mt-4">
+        <Card>
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle class="text-base flex items-center gap-2">
+                  Electronic Fiscal Device
+                  <Badge :variant="efdBadgeVariant">{{ efdBadgeLabel }}</Badge>
+                </CardTitle>
+                <CardDescription class="mt-0.5">Connect to TRA's EFD system for fiscal receipt compliance</CardDescription>
               </div>
+              <Switch v-model:checked="efdForm.efd_enabled" />
+            </div>
+          </CardHeader>
+          <CardContent v-if="efdForm.efd_enabled" class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <Label>EFD Endpoint URL</Label>
+              <Input v-model="efdForm.efd_endpoint" placeholder="https://efd.tra.go.tz/api/v1" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label>API Key</Label>
+              <Input v-model="efdForm.efd_api_key" type="password" placeholder="••••••••••••••••" />
+            </div>
+            <p v-if="settings?.efd_last_test_date" class="text-xs text-muted-foreground">
+              Last tested: {{ new Date(settings.efd_last_test_date).toLocaleString() }}
+            </p>
+            <div class="flex gap-2 pt-1">
+              <Button variant="outline" :disabled="testing" @click="handleTestEFD">
+                <TestTube class="size-4 mr-2" />
+                {{ testing ? 'Testing…' : 'Test Connection' }}
+              </Button>
+              <Button :disabled="savingEfd" @click="saveEfd">
+                <Save class="size-4 mr-2" />
+                {{ savingEfd ? 'Saving…' : 'Save EFD Settings' }}
+              </Button>
+            </div>
+          </CardContent>
+          <CardContent v-else>
+            <div class="rounded-md border bg-muted/40 p-3 flex items-start gap-2">
+              <Wifi class="size-4 mt-0.5 text-muted-foreground shrink-0" />
+              <p class="text-sm text-muted-foreground">Enable EFD to connect this POS to the Tanzania Revenue Authority's fiscal system for compliant receipt generation.</p>
             </div>
           </CardContent>
         </Card>
       </TabsContent>
 
-      <TabsContent value="receipts" class="space-y-4">
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- NOTIFICATIONS                                  -->
+      <!-- ══════════════════════════════════════════════ -->
+      <TabsContent value="notifications" class="flex flex-col gap-4 mt-4">
+
         <Card>
-          <CardHeader>
-            <CardTitle>Receipt Settings</CardTitle>
-            <CardDescription>
-              Configure receipt printing and display options
-            </CardDescription>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Alert Sound</CardTitle>
+            <CardDescription>Play a sound when stock alerts are triggered in-app</CardDescription>
           </CardHeader>
           <CardContent>
-            <div v-if="loading" class="space-y-4">
-              <Skeleton class="h-10 w-full" v-for="i in 3" :key="i" />
-            </div>
-            <div v-else class="space-y-6">
-              <div class="space-y-4">
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Auto-Print Receipts</p>
-                    <p class="text-sm text-muted-foreground">
-                      Automatically print after each sale
-                    </p>
-                  </div>
-                  <Switch v-model:checked="receiptForm.printReceiptAutomatically" />
-                </div>
-
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Show Tax on Receipt</p>
-                    <p class="text-sm text-muted-foreground">
-                      Display tax breakdown on receipts
-                    </p>
-                  </div>
-                  <Switch v-model:checked="receiptForm.showTaxOnReceipt" />
-                </div>
-
-                <div class="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p class="font-medium">Show Barcodes</p>
-                    <p class="text-sm text-muted-foreground">
-                      Display product barcodes on receipts
-                    </p>
-                  </div>
-                  <Switch v-model:checked="receiptForm.showBarcodesOnReceipt" />
-                </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Volume2 class="size-4 text-muted-foreground" />
+                <p class="text-sm">Enable notification sounds</p>
               </div>
+              <Switch v-model:checked="notificationForm.alert_sound_enabled" />
+            </div>
+          </CardContent>
+        </Card>
 
-              <div class="flex justify-end">
-                <Button @click="saveReceiptSettings" :disabled="loading">
-                  <Save class="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">Stock Alerts</CardTitle>
+            <CardDescription>Notifications when inventory reaches critical levels</CardDescription>
+          </CardHeader>
+          <CardContent class="flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm">Low stock alert</p>
+                <p class="text-xs text-muted-foreground">Triggers when quantity falls below the threshold</p>
+              </div>
+              <Switch v-model:checked="notificationForm.alert_on_low_stock" />
+            </div>
+            <div v-if="notificationForm.alert_on_low_stock" class="flex flex-col gap-1.5 max-w-xs">
+              <Label>Low Stock Threshold (units)</Label>
+              <Input v-model.number="notificationForm.low_stock_threshold" type="number" min="1" />
+            </div>
+
+            <Separator />
+
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm">Out of stock alert</p>
+                <p class="text-xs text-muted-foreground">Triggers when a product reaches zero units</p>
+              </div>
+              <Switch v-model:checked="notificationForm.alert_on_out_of_stock" />
+            </div>
+
+            <Separator />
+
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm">Dead stock alert</p>
+                <p class="text-xs text-muted-foreground">Items with no sales movement over a set period</p>
+              </div>
+              <Switch v-model:checked="notificationForm.alert_on_dead_stock" />
+            </div>
+            <div v-if="notificationForm.alert_on_dead_stock" class="flex flex-col gap-1.5 max-w-xs">
+              <Label>Dead Stock Period (days)</Label>
+              <Input v-model.number="notificationForm.dead_stock_days" type="number" min="1" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle class="text-base">Email Notifications</CardTitle>
+                <CardDescription>Receive stock alerts by email in addition to in-app</CardDescription>
+              </div>
+              <Switch v-model:checked="notificationForm.email_notifications_enabled" />
+            </div>
+          </CardHeader>
+          <CardContent v-if="notificationForm.email_notifications_enabled">
+            <div class="flex flex-col gap-1.5 max-w-sm">
+              <Label>Notification Email</Label>
+              <div class="relative">
+                <Mail class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input v-model="notificationForm.notification_email" type="email" class="pl-9" placeholder="you@example.com" />
               </div>
             </div>
           </CardContent>
         </Card>
+
+        <div class="flex justify-end">
+          <Button :disabled="savingNotifications" @click="saveNotifications">
+            <Save class="size-4 mr-2" />
+            {{ savingNotifications ? 'Saving…' : 'Save Notification Settings' }}
+          </Button>
+        </div>
       </TabsContent>
     </Tabs>
   </div>
