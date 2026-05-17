@@ -75,8 +75,8 @@ const filteredProducts = computed(() => {
   if (!searchQuery.value) return [];
   const query = searchQuery.value.toLowerCase();
   return products.value
-    .filter(product => 
-      product.name.toLowerCase().includes(query) || 
+    .filter(product =>
+      product.name.toLowerCase().includes(query) ||
       product.sku.toLowerCase().includes(query)
     )
     .slice(0, 5);
@@ -84,8 +84,8 @@ const filteredProducts = computed(() => {
 
 const subtotal = computed(() => {
   return cart.value.reduce((sum, item) => {
-    const itemPrice = item.isWholesale && item.wholesalePrice 
-      ? item.wholesalePrice 
+    const itemPrice = item.isWholesale && item.wholesalePrice
+      ? item.wholesalePrice
       : item.price;
     return sum + (itemPrice * item.quantity);
   }, 0);
@@ -135,10 +135,10 @@ onMounted(async () => {
 const handleBarcodeInput = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const barcode = input.value.trim();
-  
+
   if (!barcode) return;
 
-  const product = products.value.find(p => 
+  const product = products.value.find(p =>
     p.barcode === barcode || p.sku === barcode
   );
 
@@ -165,9 +165,9 @@ const addToCart = (product: any) => {
       return;
     }
     existingItem.quantity++;
-    
-    const shouldBeWholesale = product.wholesalePrice && 
-                             existingItem.quantity >= (product.wholesaleMin || 10);
+
+    const shouldBeWholesale = product.wholesalePrice &&
+      existingItem.quantity >= (product.wholesaleMin || 10);
     existingItem.isWholesale = shouldBeWholesale;
   } else {
     cart.value.push({
@@ -184,7 +184,7 @@ const addToCart = (product: any) => {
   }
 
   searchQuery.value = '';
-  
+
   // Auto-update amount paid for cash
   if (paymentType.value === 'cash') {
     amountPaid.value = total.value;
@@ -206,11 +206,11 @@ const updateQuantity = (item: CartItem, change: number) => {
   }
 
   item.quantity = newQuantity;
-  
-  const shouldBeWholesale = Boolean(item.wholesalePrice && 
-                           item.quantity >= (item.wholesaleMin || 10));
+
+  const shouldBeWholesale = Boolean(item.wholesalePrice &&
+    item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
-  
+
   // Auto-update amount paid for cash
   if (paymentType.value === 'cash') {
     amountPaid.value = total.value;
@@ -220,7 +220,7 @@ const updateQuantity = (item: CartItem, change: number) => {
 // Set quantity directly
 const setQuantity = (item: CartItem, value: string) => {
   const quantity = parseInt(value);
-  
+
   if (isNaN(quantity) || quantity <= 0) {
     removeFromCart(item);
     return;
@@ -232,11 +232,11 @@ const setQuantity = (item: CartItem, value: string) => {
   }
 
   item.quantity = quantity;
-  
-  const shouldBeWholesale = Boolean(item.wholesalePrice && 
-                           item.quantity >= (item.wholesaleMin || 10));
+
+  const shouldBeWholesale = Boolean(item.wholesalePrice &&
+    item.quantity >= (item.wholesaleMin || 10));
   item.isWholesale = shouldBeWholesale;
-  
+
   // Auto-update amount paid for cash
   if (paymentType.value === 'cash') {
     amountPaid.value = total.value;
@@ -246,7 +246,7 @@ const setQuantity = (item: CartItem, value: string) => {
 // Remove from cart
 const removeFromCart = (item: CartItem) => {
   cart.value = cart.value.filter(cartItem => cartItem.productId !== item.productId);
-  
+
   // Auto-update amount paid for cash
   if (paymentType.value === 'cash' && cart.value.length > 0) {
     amountPaid.value = total.value;
@@ -275,7 +275,7 @@ const pauseCart = () => {
 
   pausedCarts.value.push(pausedCart);
   savePausedCarts();
-  
+
   clearCart();
   toast.success('Cart paused');
 };
@@ -291,12 +291,12 @@ const resumeCart = (pausedCart: PausedCart) => {
   pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
   savePausedCarts();
   showPausedCartsPopover.value = false;
-  
+
   // Auto-update amount paid for cash
   if (paymentType.value === 'cash') {
     amountPaid.value = total.value;
   }
-  
+
   toast.success('Cart resumed');
 };
 
@@ -332,7 +332,7 @@ const formatPausedTime = (date: Date): string => {
   const now = new Date();
   const diff = now.getTime() - new Date(date).getTime();
   const minutes = Math.floor(diff / 60000);
-  
+
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
@@ -350,37 +350,37 @@ const openConfirmation = () => {
     }
     return;
   }
-  
+
   showConfirmDialog.value = true;
 };
 
 // Process checkout
 const processCheckout = async () => {
   showConfirmDialog.value = false;
-  
+
   try {
     const saleItems = cart.value.map(item => ({
-      productId: item.productId,
+      product_id: item.productId,
       quantity: item.quantity,
-      isWholesale: item.isWholesale
-    }));
+      is_wholesale: item.isWholesale
+    }))
 
     const result = await createSale({
       items: saleItems,
-      paymentType: paymentType.value,
-      saleType: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
-      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined,
-      useEFD: true
-    });
+      payment_type: paymentType.value,
+      sale_type: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
+      amount_paid: paymentType.value === 'cash' ? amountPaid.value : undefined,
+      use_efd: true
+    })
 
     if (result) {
       // Store receipt info
-      lastReceipt.value = result.receiptNumber;
+      lastReceipt.value = result.receipt_number;
       lastChange.value = result.change || 0;
-      
+
       // Show success state briefly
       showingSuccess.value = true;
-      
+
       // Show success toast with change
       if (paymentType.value === 'cash' && lastChange.value > 0) {
         toast.success('Sale completed!', {
@@ -393,7 +393,7 @@ const processCheckout = async () => {
           duration: 3000,
         });
       }
-      
+
       // Auto-clear after 3 seconds for next customer
       setTimeout(() => {
         clearCart();
@@ -447,28 +447,17 @@ watch(paymentType, (newType) => {
             <CardContent class="space-y-3">
               <div class="relative">
                 <Barcode class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  v-model="barcodeInput"
-                  placeholder="Scan barcode or enter SKU..."
-                  class="pl-10"
-                  @keyup.enter="handleBarcodeInput"
-                />
+                <Input v-model="barcodeInput" placeholder="Scan barcode or enter SKU..." class="pl-10"
+                  @keyup.enter="handleBarcodeInput" />
               </div>
 
               <div class="relative">
                 <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  v-model="searchQuery"
-                  placeholder="Search products by name..."
-                  class="pl-10"
-                />
-                <div v-if="filteredProducts.length > 0" class="absolute w-full mt-1 bg-popover border rounded-md shadow-lg z-10">
-                  <div
-                    v-for="product in filteredProducts"
-                    :key="product.id"
-                    class="p-3 hover:bg-accent cursor-pointer"
-                    @click="addToCart(product)"
-                  >
+                <Input v-model="searchQuery" placeholder="Search products by name..." class="pl-10" />
+                <div v-if="filteredProducts.length > 0"
+                  class="absolute w-full mt-1 bg-popover border rounded-md shadow-lg z-10">
+                  <div v-for="product in filteredProducts" :key="product.id" class="p-3 hover:bg-accent cursor-pointer"
+                    @click="addToCart(product)">
                     <div class="flex justify-between items-center">
                       <div>
                         <p class="font-medium">{{ product.name }}</p>
@@ -491,12 +480,7 @@ watch(paymentType, (newType) => {
               <div class="flex justify-between items-center">
                 <CardTitle>Cart ({{ totalItems }} items)</CardTitle>
                 <div class="flex gap-2">
-                  <Button 
-                    v-if="cart.length > 0" 
-                    variant="outline" 
-                    size="sm" 
-                    @click="pauseCart"
-                  >
+                  <Button v-if="cart.length > 0" variant="outline" size="sm" @click="pauseCart">
                     <Pause class="h-4 w-4 mr-2" />
                     Pause
                   </Button>
@@ -539,17 +523,14 @@ watch(paymentType, (newType) => {
 
                 <!-- Cart items -->
                 <div v-else class="space-y-3">
-                  <div
-                    v-for="item in cart"
-                    :key="item.productId"
-                    class="flex items-center gap-3 p-3 border rounded-lg"
-                  >
+                  <div v-for="item in cart" :key="item.productId" class="flex items-center gap-3 p-3 border rounded-lg">
                     <div class="flex-1 min-w-0">
                       <p class="font-medium truncate">{{ item.name }}</p>
                       <p class="text-sm text-muted-foreground">{{ item.sku }}</p>
                       <div class="flex items-center gap-2 mt-1">
                         <p class="text-sm font-semibold">
-                          {{ formatCurrency(item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) }}
+                          {{ formatCurrency(item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price)
+                          }}
                         </p>
                         <Badge v-if="item.isWholesale" variant="default" class="text-xs">Wholesale</Badge>
                       </div>
@@ -559,13 +540,9 @@ watch(paymentType, (newType) => {
                       <Button variant="outline" size="icon" @click="updateQuantity(item, -1)">
                         <Minus class="h-4 w-4" />
                       </Button>
-                      <Input
-                        :value="item.quantity"
-                        @input="setQuantity(item, ($event.target as HTMLInputElement).value)"
-                        class="w-16 text-center"
-                        type="number"
-                        min="1"
-                      />
+                      <Input :value="item.quantity"
+                        @input="setQuantity(item, ($event.target as HTMLInputElement).value)" class="w-16 text-center"
+                        type="number" min="1" />
                       <Button variant="outline" size="icon" @click="updateQuantity(item, 1)">
                         <Plus class="h-4 w-4" />
                       </Button>
@@ -573,7 +550,8 @@ watch(paymentType, (newType) => {
 
                     <div class="text-right min-w-[80px]">
                       <p class="font-bold">
-                        {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) * item.quantity) }}
+                        {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) *
+                        item.quantity) }}
                       </p>
                     </div>
 
@@ -639,14 +617,8 @@ watch(paymentType, (newType) => {
               <!-- Cash Payment -->
               <div v-if="paymentType === 'cash'" class="space-y-2">
                 <p class="text-sm font-medium">Amount Paid</p>
-                <Input
-                  v-model.number="amountPaid"
-                  type="number"
-                  placeholder="Enter amount"
-                  :min="total"
-                  step="1000"
-                  class="text-lg"
-                />
+                <Input v-model.number="amountPaid" type="number" placeholder="Enter amount" :min="total" step="1000"
+                  class="text-lg" />
                 <div v-if="amountPaid > 0" class="flex justify-between text-sm p-2 bg-muted rounded">
                   <span class="text-muted-foreground">Change:</span>
                   <span :class="change < 0 ? 'text-destructive font-bold' : 'text-green-600 font-bold text-lg'">
@@ -656,12 +628,7 @@ watch(paymentType, (newType) => {
               </div>
 
               <!-- Checkout Button -->
-              <Button 
-                class="w-full" 
-                size="lg" 
-                :disabled="!canCheckout || loading"
-                @click="openConfirmation"
-              >
+              <Button class="w-full" size="lg" :disabled="!canCheckout || loading" @click="openConfirmation">
                 <ShoppingCart class="mr-2 h-5 w-5" />
                 {{ loading ? 'Processing...' : 'Complete Sale' }}
               </Button>
@@ -674,11 +641,8 @@ watch(paymentType, (newType) => {
     <!-- Floating Paused Carts Button -->
     <Popover v-model:open="showPausedCartsPopover">
       <PopoverTrigger as-child>
-        <Button
-          v-if="pausedCarts.length > 0"
-          class="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
-          size="icon"
-        >
+        <Button v-if="pausedCarts.length > 0" class="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+          size="icon">
           <div class="relative">
             <Play class="h-6 w-6" />
             <Badge class="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0" variant="destructive">
@@ -692,11 +656,7 @@ watch(paymentType, (newType) => {
           <h4 class="font-semibold">Paused Carts</h4>
           <ScrollArea class="max-h-[300px]">
             <div class="space-y-2">
-              <div
-                v-for="pausedCart in pausedCarts"
-                :key="pausedCart.id"
-                class="border rounded-lg p-3 space-y-2"
-              >
+              <div v-for="pausedCart in pausedCarts" :key="pausedCart.id" class="border rounded-lg p-3 space-y-2">
                 <div class="flex justify-between items-start">
                   <div>
                     <p class="font-medium">{{ pausedCart.items.length }} items</p>
@@ -712,11 +672,7 @@ watch(paymentType, (newType) => {
                   </div>
                 </div>
                 <div class="text-xs space-y-1">
-                  <div
-                    v-for="item in pausedCart.items.slice(0, 2)"
-                    :key="item.productId"
-                    class="flex justify-between"
-                  >
+                  <div v-for="item in pausedCart.items.slice(0, 2)" :key="item.productId" class="flex justify-between">
                     <span class="truncate">{{ item.name }} x{{ item.quantity }}</span>
                   </div>
                   <p v-if="pausedCart.items.length > 2" class="text-muted-foreground">

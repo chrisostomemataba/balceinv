@@ -66,6 +66,16 @@ interface ApiResponse<T> {
   data: T;
 }
 
+interface SaleResult {
+  id: number
+  receipt_number: string
+  total: number
+  tax_amount: number
+  payment_type: string
+  amount_paid: number
+  change: number
+}
+
 export const useSales = () => {
   const { public: { apiBase } } = useRuntimeConfig();
   const { $apiFetch } = useNuxtApp();
@@ -123,12 +133,12 @@ export const useSales = () => {
   }) => {
     loading.value = true;
     try {
-      const res = await $apiFetch(`${apiBase}/api/sales`, {
+      const res = await $apiFetch<ApiResponse<SaleResult>>(`${apiBase}/api/sales`, {
         method: "POST" as const,
         body: data,
         credentials: "include" as const,
       });
-      return res;
+      return res.data;
     } catch (err: any) {
       toast.error("Sale failed", {
         description: err?.data?.message || "Please try again",

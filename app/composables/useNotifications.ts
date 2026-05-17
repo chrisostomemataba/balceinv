@@ -2,15 +2,15 @@ import { ref, computed } from "vue";
 import { toast } from "vue-sonner";
 
 export interface Notification {
-  id: number;
-  productId: number;
-  productName: string;
-  productSku: string;
-  currentQuantity: number;
-  threshold: number;
-  alertType: "low" | "out";
-  isSeen: boolean;
-  createdAt: Date;
+  id: number
+  product_id: number
+  product_name: string
+  product_sku: string
+  current_quantity: number
+  threshold: number
+  alert_type: 'low' | 'out'
+  is_seen: boolean
+  created_at: Date
 }
 
 export const useNotifications = () => {
@@ -73,7 +73,7 @@ export const useNotifications = () => {
         const oldCount = notificationCount.value;
         notifications.value = res.data;
         notificationCount.value = res.data.filter(
-          (n: Notification) => !n.isSeen,
+          (n: Notification) => !n.is_seen,
         ).length;
 
         if (notificationCount.value > oldCount && oldCount > 0) {
@@ -119,7 +119,7 @@ export const useNotifications = () => {
         (n) => n.id === notificationId,
       );
       if (notification) {
-        notification.isSeen = true;
+        notification.is_seen = true;
         notificationCount.value = Math.max(0, notificationCount.value - 1);
       }
     } catch (error: any) {
@@ -137,7 +137,7 @@ export const useNotifications = () => {
         credentials: "include",
       });
 
-      notifications.value.forEach((n) => (n.isSeen = true));
+      notifications.value.forEach((n) => (n.is_seen = true));
       notificationCount.value = 0;
     } catch (error: any) {
       toast.error(
@@ -158,7 +158,7 @@ export const useNotifications = () => {
         (n) => n.id === notificationId,
       );
       if (index !== -1) {
-        const wasUnseen = !notifications.value[index]?.isSeen;
+        const wasUnseen = !notifications.value[index]?.is_seen;
         notifications.value.splice(index, 1);
         if (wasUnseen)
           notificationCount.value = Math.max(0, notificationCount.value - 1);
@@ -176,7 +176,7 @@ export const useNotifications = () => {
         credentials: "include",
       });
 
-      notifications.value = notifications.value.filter((n) => !n.isSeen);
+      notifications.value = notifications.value.filter((n) => !n.is_seen);
     } catch (error: any) {
       toast.error(error?.data?.message || "Failed to clear notifications");
       throw error;
@@ -201,7 +201,7 @@ export const useNotifications = () => {
   };
 
   const unreadNotifications = computed(() =>
-    notifications.value.filter((n) => !n.isSeen),
+    notifications.value.filter((n) => !n.is_seen),
   );
   const hasUnread = computed(() => notificationCount.value > 0);
 
