@@ -26,6 +26,11 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'vue-sonner';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '~/composables/useAuth';
+import { usePermissions } from '~/composables/usePermissions';
+
+const { user } = useAuth();
+const { canCreate, canView, fetchUserPermissions } = usePermissions();
 
 const { 
   movements, 
@@ -71,6 +76,9 @@ const columns = computed(() =>
 );
 
 onMounted(async () => {
+  if (user.value) {
+    await fetchUserPermissions(user.value.id)
+  }
   await fetchMovements();
   await fetchSummary();
   await fetchProducts();
@@ -152,7 +160,7 @@ const netChange = computed(() => summary.value?.net_change || 0)
           <Download class="mr-2 h-4 w-4" />
           Export Report
         </Button>
-        <Button @click="openAdjustmentDialog" :disabled="loading">
+        <Button v-if="canCreate('stock_movements')" @click="openAdjustmentDialog" :disabled="loading">
           <Plus class="mr-2 h-4 w-4" />
           New Adjustment
         </Button>

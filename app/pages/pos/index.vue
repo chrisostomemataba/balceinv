@@ -540,7 +540,7 @@ watch(paymentType, (newType) => {
                       <Button variant="outline" size="icon" @click="updateQuantity(item, -1)">
                         <Minus class="h-4 w-4" />
                       </Button>
-                      <Input :value="item.quantity"
+                      <Input :model-value="item.quantity"
                         @input="setQuantity(item, ($event.target as HTMLInputElement).value)" class="w-16 text-center"
                         type="number" min="1" />
                       <Button variant="outline" size="icon" @click="updateQuantity(item, 1)">
@@ -548,7 +548,7 @@ watch(paymentType, (newType) => {
                       </Button>
                     </div>
 
-                    <div class="text-right min-w-[80px]">
+                    <div class="text-right min-w-20">
                       <p class="font-bold">
                         {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) *
                         item.quantity) }}
