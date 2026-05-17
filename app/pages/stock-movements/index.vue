@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { TrendingUp, TrendingDown, Download, Plus, Package, ShoppingCart, AlertTriangle, Settings } from 'lucide-vue-next';
-import { columns } from '@/components/stock-movements/columns';
+import { createColumns } from '@/components/stock-movements/columns';
 import DataTable from '@/components/stock-movements/DataTable.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,7 +51,7 @@ const adjustmentForm = ref({
   reference: ''
 });
 
-const formatDate = (date: Date): string => {
+const formatDate = (date: string): string => {
   return new Intl.DateTimeFormat('en-TZ', {
     year: 'numeric',
     month: 'long',
@@ -61,22 +61,20 @@ const formatDate = (date: Date): string => {
   }).format(new Date(date));
 };
 
+const columns = computed(() =>
+  createColumns({
+    onView: async (movement) => {
+      await fetchMovement(movement.id);
+      showDetailsDialog.value = true;
+    },
+  })
+);
+
 onMounted(async () => {
   await fetchMovements();
   await fetchSummary();
   await fetchProducts();
-  
-  window.addEventListener('view-movement', handleViewMovement);
 });
-
-onUnmounted(() => {
-  window.removeEventListener('view-movement', handleViewMovement);
-});
-
-const handleViewMovement = async (event: any) => {
-  await fetchMovement(event.detail.id);
-  showDetailsDialog.value = true;
-};
 
 const handleDateFilter = async (startDate: Date | null, endDate: Date | null) => {
   if (startDate && endDate) {
@@ -270,7 +268,7 @@ const netChange = computed(() => summary.value?.net_change || 0)
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-muted-foreground">Date</p>
-              <p class="font-medium">{{ formatDate(selectedMovement.createdAt) }}</p>
+              <p class="font-medium">{{ formatDate(selectedMovement.created_at) }}</p>
             </div>
             <div>
               <p class="text-sm text-muted-foreground">User</p>
@@ -303,7 +301,7 @@ const netChange = computed(() => summary.value?.net_change || 0)
             <div>
               <p class="text-sm text-muted-foreground">New Stock</p>
               <div class="text-xl font-bold">
-                {{ selectedMovement.newQuantity }} {{ selectedMovement.product?.unit }}
+                {{ selectedMovement.new_quantity }} {{ selectedMovement.product?.unit }}
               </div>
             </div>
             <div>

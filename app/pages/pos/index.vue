@@ -360,17 +360,17 @@ const processCheckout = async () => {
 
   try {
     const saleItems = cart.value.map(item => ({
-      product_id: item.productId,
+      productId: item.productId,
       quantity: item.quantity,
-      is_wholesale: item.isWholesale
+      isWholesale: item.isWholesale
     }))
 
     const result = await createSale({
       items: saleItems,
-      payment_type: paymentType.value,
-      sale_type: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
-      amount_paid: paymentType.value === 'cash' ? amountPaid.value : undefined,
-      use_efd: true
+      paymentType: paymentType.value,
+      saleType: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
+      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined,
+      useEfd: true
     })
 
     if (result) {

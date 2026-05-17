@@ -125,11 +125,11 @@ export const useSales = () => {
   };
 
   const createSale = async (data: {
-    items: Array<{ product_id: number; quantity: number; is_wholesale?: boolean }>;
-    payment_type: "cash" | "card" | "mobile";
-    sale_type?: "retail" | "wholesale";
-    amount_paid?: number;
-    use_efd?: boolean;
+    items: Array<{ productId: number; quantity: number; isWholesale?: boolean }>;
+    paymentType: "cash" | "card" | "mobile";
+    saleType?: "retail" | "wholesale";
+    amountPaid?: number;
+    useEfd?: boolean;
   }) => {
     loading.value = true;
     try {

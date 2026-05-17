@@ -46,7 +46,7 @@ const onSubmit = form.handleSubmit(async (values) => {
     if (response.success && response.data?.user) {
       const { role, name } = response.data.user
       toast.success('Welcome back!', { description: `Signed in as ${name}` })
-      await navigateTo(role === 'SuperAdmin' || role === 'Admin' ? '/dashboard' : '/')
+      await navigateTo(role === 'SuperAdmin' || role === 'Admin' ? '/pos' : '/pos')
     }
   } catch (error: any) {
     toast.error('Sign in failed', {

@@ -6,12 +6,12 @@ import { Badge } from '@/components/ui/badge';
 
 interface StockMovement {
   id: number;
-  productId: number;
+  product_id: number;
   change: number;
-  newQuantity: number;
+  new_quantity: number;
   reason: string;
   reference?: string | null;
-  createdAt: Date;
+  created_at: string;
   product?: {
     name: string;
     sku: string;
@@ -22,7 +22,11 @@ interface StockMovement {
   };
 }
 
-const formatDate = (date: Date): string => {
+export interface ActionHandlers {
+  onView: (movement: StockMovement) => void;
+}
+
+const formatDate = (date: string): string => {
   return new Intl.DateTimeFormat('en-TZ', {
     year: 'numeric',
     month: 'short',
@@ -32,14 +36,14 @@ const formatDate = (date: Date): string => {
   }).format(new Date(date));
 };
 
-const getReasonBadge = (reason: string) => {
-  const variants: Record<string, any> = {
+const getReasonBadge = (reason: string): 'destructive' | 'default' | 'secondary' | 'outline' => {
+  const variants: Record<string, 'destructive' | 'default' | 'secondary' | 'outline'> = {
     sale: 'destructive',
     purchase: 'default',
     adjust: 'secondary',
-    damage: 'outline'
+    damage: 'outline',
   };
-  return variants[reason] || 'secondary';
+  return variants[reason] ?? 'secondary';
 };
 
 const getReasonLabel = (reason: string): string => {
@@ -47,21 +51,18 @@ const getReasonLabel = (reason: string): string => {
     sale: 'Sale',
     purchase: 'Purchase',
     adjust: 'Adjustment',
-    damage: 'Damage'
+    damage: 'Damage',
   };
-  return labels[reason] || reason;
+  return labels[reason] ?? reason;
 };
 
-export const columns: ColumnDef<StockMovement>[] = [
+export const createColumns = (handlers: ActionHandlers): ColumnDef<StockMovement>[] => [
   {
-    accessorKey: 'createdAt',
-    header: ({ column }) => {
-      return h(Button, {
-        variant: 'ghost',
-        onClick: () => column.toggleSorting(column.getIsSorted() === 'asc'),
-      }, () => ['Date', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]);
-    },
-    cell: ({ row }) => h('div', { class: 'text-sm' }, formatDate(row.getValue('createdAt'))),
+    accessorKey: 'created_at',
+    header: ({ column }) =>
+      h(Button, { variant: 'ghost', onClick: () => column.toggleSorting(column.getIsSorted() === 'asc') },
+        () => ['Date', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]),
+    cell: ({ row }) => h('div', { class: 'text-sm' }, formatDate(row.getValue('created_at'))),
   },
   {
     accessorKey: 'product',
@@ -70,42 +71,31 @@ export const columns: ColumnDef<StockMovement>[] = [
       const product = row.original.product;
       return h('div', { class: 'space-y-1' }, [
         h('p', { class: 'font-medium' }, product?.name || 'N/A'),
-        h('p', { class: 'text-xs text-muted-foreground font-mono' }, product?.sku || '')
+        h('p', { class: 'text-xs text-muted-foreground font-mono' }, product?.sku || ''),
       ]);
     },
   },
   {
     accessorKey: 'change',
-    header: ({ column }) => {
-      return h(Button, {
-        variant: 'ghost',
-        onClick: () => column.toggleSorting(column.getIsSorted() === 'asc'),
-      }, () => ['Change', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]);
-    },
+    header: ({ column }) =>
+      h(Button, { variant: 'ghost', onClick: () => column.toggleSorting(column.getIsSorted() === 'asc') },
+        () => ['Change', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]),
     cell: ({ row }) => {
       const change = row.getValue('change') as number;
       const isPositive = change > 0;
-      
-      return h('div', { 
-        class: `flex items-center gap-1 font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}` 
-      }, [
-        isPositive 
-          ? h(TrendingUp, { class: 'h-4 w-4' })
-          : h(TrendingDown, { class: 'h-4 w-4' }),
-        h('span', null, `${isPositive ? '+' : ''}${change}`)
+      return h('div', { class: `flex items-center gap-1 font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}` }, [
+        isPositive ? h(TrendingUp, { class: 'h-4 w-4' }) : h(TrendingDown, { class: 'h-4 w-4' }),
+        h('span', null, `${isPositive ? '+' : ''}${change}`),
       ]);
     },
   },
   {
-    accessorKey: 'newQuantity',
-    header: ({ column }) => {
-      return h(Button, {
-        variant: 'ghost',
-        onClick: () => column.toggleSorting(column.getIsSorted() === 'asc'),
-      }, () => ['New Stock', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]);
-    },
+    accessorKey: 'new_quantity',
+    header: ({ column }) =>
+      h(Button, { variant: 'ghost', onClick: () => column.toggleSorting(column.getIsSorted() === 'asc') },
+        () => ['New Stock', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]),
     cell: ({ row }) => {
-      const quantity = row.getValue('newQuantity') as number;
+      const quantity = row.getValue('new_quantity') as number;
       const unit = row.original.product?.unit || 'pcs';
       return h('div', { class: 'font-medium' }, `${quantity} ${unit}`);
     },
@@ -117,9 +107,7 @@ export const columns: ColumnDef<StockMovement>[] = [
       const reason = row.getValue('reason') as string;
       return h(Badge, { variant: getReasonBadge(reason) }, () => getReasonLabel(reason));
     },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
-    },
+    filterFn: (row, id, value) => value.includes(row.getValue(id)),
   },
   {
     accessorKey: 'reference',
@@ -142,17 +130,13 @@ export const columns: ColumnDef<StockMovement>[] = [
     enableHiding: false,
     cell: ({ row }) => {
       const movement = row.original;
-
       return h(Button, {
         variant: 'ghost',
         size: 'sm',
-        onClick: () => {
-          const event = new CustomEvent('view-movement', { detail: movement });
-          window.dispatchEvent(event);
-        }
+        onClick: () => handlers.onView(movement),
       }, () => [
         h(Eye, { class: 'mr-2 h-4 w-4' }),
-        'Details'
+        'Details',
       ]);
     },
   },

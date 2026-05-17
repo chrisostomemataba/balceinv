@@ -2,13 +2,13 @@ import { toast } from 'vue-sonner'
 
 interface StockMovement {
   id: number
-  productId: number
+  product_id: number
   change: number
-  newQuantity: number
+  new_quantity: number
   reason: string
   reference?: string | null
-  userId?: number | null
-  createdAt: Date
+  user_id?: number | null
+  created_at: string
   product?: { name: string; sku: string; unit: string }
   user?: { name: string; email: string }
 }
