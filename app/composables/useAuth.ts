@@ -112,6 +112,7 @@ export const useAuth = () => {
     login,
     logout,
     setup,
+    setupAdmin: setup,
     checkSetup,
   }
 }

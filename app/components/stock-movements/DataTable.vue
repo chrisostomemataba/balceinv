@@ -54,17 +54,6 @@ const dateRange = ref<{ start: DateValue | null; end: DateValue | null }>({
   end: null
 });
 
-// Computed properties for Calendar component
-const startDate = computed({
-  get: () => dateRange.value.start || undefined,
-  set: (value: any) => { dateRange.value.start = value || null; }
-});
-
-const endDate = computed({
-  get: () => dateRange.value.end || undefined,
-  set: (value: any) => { dateRange.value.end = value || null; }
-});
-
 // Helper function to convert DateValue to Date for emit
 const dateValueToDate = (dateValue: any): Date | null => {
   if (!dateValue) return null;
@@ -85,13 +74,13 @@ const table = useVueTable({
   getSortedRowModel: getSortedRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   onSortingChange: (updaterOrValue) => {
-    sorting.value = typeof updaterOrValue === 'function' 
-      ? updaterOrValue(sorting.value) 
+    sorting.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(sorting.value)
       : updaterOrValue;
   },
   onColumnFiltersChange: (updaterOrValue) => {
-    columnFilters.value = typeof updaterOrValue === 'function' 
-      ? updaterOrValue(columnFilters.value) 
+    columnFilters.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(columnFilters.value)
       : updaterOrValue;
   },
   state: {
@@ -127,19 +116,15 @@ watch(searchQuery, (value) => {
     <div class="flex flex-col sm:flex-row gap-2">
       <div class="relative flex-1">
         <Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          v-model="searchQuery"
-          placeholder="Search by product name or SKU..."
-          class="pl-8"
-        />
+        <Input v-model="searchQuery" placeholder="Search by product name or SKU..." class="pl-8" />
       </div>
 
       <Popover>
         <PopoverTrigger as-child>
           <Button variant="outline" class="justify-start text-left font-normal">
             <Calendar class="mr-2 h-4 w-4" />
-            {{ dateRange.start && dateRange.end 
-              ? `${dateRange.start.toString()} - ${dateRange.end.toString()}` 
+            {{ dateRange.start && dateRange.end
+              ? `${dateRange.start.toString()} - ${dateRange.end.toString()}`
               : 'Select date range' }}
           </Button>
         </PopoverTrigger>
@@ -147,11 +132,11 @@ watch(searchQuery, (value) => {
           <div class="p-3 space-y-3">
             <div>
               <p class="text-sm font-medium mb-2">Start Date</p>
-              <CalendarComponent v-model="startDate as any" />
+              <CalendarComponent :model-value="dateRange.start as any" @update:model-value="dateRange.start = $event" />
             </div>
             <div>
               <p class="text-sm font-medium mb-2">End Date</p>
-              <CalendarComponent v-model="endDate as any" />
+              <CalendarComponent :model-value="dateRange.end as any" @update:model-value="dateRange.end = $event" />
             </div>
             <div class="flex gap-2">
               <Button @click="applyDateFilter" size="sm" class="flex-1">Apply</Button>
@@ -160,7 +145,7 @@ watch(searchQuery, (value) => {
           </div>
         </PopoverContent>
       </Popover>
-      
+
       <Select v-model="selectedReason">
         <SelectTrigger class="w-full sm:w-[180px]">
           <Filter class="mr-2 h-4 w-4" />
@@ -181,26 +166,17 @@ watch(searchQuery, (value) => {
         <TableHeader>
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <TableHead v-for="header in headerGroup.headers" :key="header.id">
-              <FlexRender
-                v-if="!header.isPlaceholder"
-                :render="header.column.columnDef.header"
-                :props="header.getContext()"
-              />
+              <FlexRender v-if="!header.isPlaceholder" :render="header.column.columnDef.header"
+                :props="header.getContext()" />
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <template v-if="table.getRowModel().rows?.length">
-            <TableRow
-              v-for="row in table.getRowModel().rows"
-              :key="row.id"
-              :data-state="row.getIsSelected() && 'selected'"
-            >
+            <TableRow v-for="row in table.getRowModel().rows" :key="row.id"
+              :data-state="row.getIsSelected() && 'selected'">
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                <FlexRender
-                  :render="cell.column.columnDef.cell"
-                  :props="cell.getContext()"
-                />
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>
             </TableRow>
           </template>
@@ -218,20 +194,10 @@ watch(searchQuery, (value) => {
         {{ table.getFilteredRowModel().rows.length }} movement(s) total
       </div>
       <div class="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanPreviousPage()"
-          @click="table.previousPage()"
-        >
+        <Button variant="outline" size="sm" :disabled="!table.getCanPreviousPage()" @click="table.previousPage()">
           Previous
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanNextPage()"
-          @click="table.nextPage()"
-        >
+        <Button variant="outline" size="sm" :disabled="!table.getCanNextPage()" @click="table.nextPage()">
           Next
         </Button>
       </div>

@@ -132,12 +132,12 @@ const handleExport = () => {
   exportReport();
 };
 
-const totalMovements = computed(() => summary.value?.totalMovements || 0);
-const bySale = computed(() => summary.value?.bySale || 0);
-const byPurchase = computed(() => summary.value?.byPurchase || 0);
-const byAdjustment = computed(() => summary.value?.byAdjustment || 0);
-const byDamage = computed(() => summary.value?.byDamage || 0);
-const netChange = computed(() => summary.value?.netChange || 0);
+const totalMovements = computed(() => summary.value?.total_movements || 0)
+const bySale = computed(() => summary.value?.by_sale || 0)
+const byPurchase = computed(() => summary.value?.by_purchase || 0)
+const byAdjustment = computed(() => summary.value?.by_adjustment || 0)
+const byDamage = computed(() => summary.value?.by_damage || 0)
+const netChange = computed(() => summary.value?.net_change || 0)
 </script>
 
 <template>
