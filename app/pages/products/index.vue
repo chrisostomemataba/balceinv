@@ -44,7 +44,6 @@ const {
   deleteProduct,
   uploadExcel,
   downloadTemplate,
-  fetchProduct,
 } = useProducts()
 
 const { catalog, loading: catalogLoading, fetchCatalog, searchCatalog } = useCatalog()
@@ -55,7 +54,6 @@ const showDetailsDialog = ref(false)
 const showUploadDialog = ref(false)
 const isEditing = ref(false)
 const uploadFile = ref<File | null>(null)
-const detailsLoading = ref(false)
 
 const showCatalogPanel = ref(false)
 const catalogSearch = ref('')
@@ -118,36 +116,35 @@ onMounted(async () => {
   await fetchProducts()
 })
 
+// columns is a computed so canEdit/canDelete react to permission changes
+// onView does NOT call fetchProduct — the product from row.original has all
+// fields the dialog needs. Calling fetchProduct sets the shared loading ref
+// to true which tears down DataTable mid-render and causes the backdrop-only bug.
 const columns = computed(() =>
   createColumns({
-    onView: async (product) => {
-      detailsLoading.value = true
+    canEdit: canEdit('products'),
+    canDelete: canDelete('products'),
+    onView: (product) => {
       selectedProduct.value = product
       showDetailsDialog.value = true
-      await fetchProduct(product.id)
-      detailsLoading.value = false
     },
     onEdit: (product) => {
-      if (!canEdit('products')) {
-        toast.error('You do not have permission to edit products')
-        return
-      }
       isEditing.value = true
       formData.value = {
         name: product.name,
         sku: product.sku,
         barcode: product.barcode || '',
         price: formatCurrency(product.price.toString()),
-        costPrice: formatCurrency(product.costPrice.toString()),
+        costPrice: formatCurrency(product.cost_price.toString()),
         quantity: product.quantity.toString(),
-        minStock: product.minStock.toString(),
-        wholesalePrice: product.wholesalePrice
-          ? formatCurrency(product.wholesalePrice.toString())
+        minStock: product.min_stock.toString(),
+        wholesalePrice: product.wholesale_price
+          ? formatCurrency(product.wholesale_price.toString())
           : '',
-        wholesaleMin: product.wholesaleMin?.toString() || '10',
+        wholesaleMin: product.wholesale_min?.toString() || '10',
         category: product.category || '',
         unit: product.unit,
-        piecesPerUnit: product.piecesPerUnit.toString(),
+        piecesPerUnit: product.pieces_per_unit.toString(),
       }
       metadataFields.value = product.metadata
         ? Object.entries(product.metadata).map(([key, value]) => ({ key, value: String(value) }))
@@ -157,10 +154,6 @@ const columns = computed(() =>
       showDialog.value = true
     },
     onDelete: (product) => {
-      if (!canDelete('products')) {
-        toast.error('You do not have permission to delete products')
-        return
-      }
       selectedProduct.value = product
       showDeleteDialog.value = true
     },
@@ -168,10 +161,6 @@ const columns = computed(() =>
 )
 
 const openCreateDialog = () => {
-  if (!canCreate('products')) {
-    toast.error('You do not have permission to create products')
-    return
-  }
   isEditing.value = false
   selectedProduct.value = null
   formData.value = {
@@ -195,10 +184,6 @@ const openCreateDialog = () => {
 }
 
 const openUploadDialog = () => {
-  if (!canCreate('products')) {
-    toast.error('You do not have permission to upload products')
-    return
-  }
   showUploadDialog.value = true
 }
 
@@ -240,31 +225,23 @@ const handleSubmit = async () => {
     sku: formData.value.sku,
     barcode: formData.value.barcode || null,
     price: parseCurrency(formData.value.price),
-    costPrice: parseCurrency(formData.value.costPrice),
+    cost_price: parseCurrency(formData.value.costPrice),
     quantity: parseInt(formData.value.quantity) || 0,
-    minStock: parseInt(formData.value.minStock) || 5,
-    wholesalePrice: formData.value.wholesalePrice
+    min_stock: parseInt(formData.value.minStock) || 5,
+    wholesale_price: formData.value.wholesalePrice
       ? parseCurrency(formData.value.wholesalePrice)
       : null,
-    wholesaleMin: parseInt(formData.value.wholesaleMin) || 10,
+    wholesale_min: parseInt(formData.value.wholesaleMin) || 10,
     category: formData.value.category || null,
     unit: formData.value.unit,
-    piecesPerUnit: parseInt(formData.value.piecesPerUnit) || 1,
+    pieces_per_unit: parseInt(formData.value.piecesPerUnit) || 1,
     metadata: buildMetadata(),
   }
 
   try {
     if (isEditing.value && selectedProduct.value) {
-      if (!canEdit('products')) {
-        toast.error('You do not have permission to edit products')
-        return
-      }
       await updateProduct(selectedProduct.value.id, productData)
     } else {
-      if (!canCreate('products')) {
-        toast.error('You do not have permission to create products')
-        return
-      }
       await createProduct(productData)
     }
     showDialog.value = false
@@ -274,10 +251,6 @@ const handleSubmit = async () => {
 }
 
 const confirmDelete = async () => {
-  if (!canDelete('products')) {
-    toast.error('You do not have permission to delete products')
-    return
-  }
   if (selectedProduct.value) {
     try {
       await deleteProduct(selectedProduct.value.id)
@@ -295,10 +268,6 @@ const handleFileUpload = (event: Event) => {
 }
 
 const handleUpload = async () => {
-  if (!canCreate('products')) {
-    toast.error('You do not have permission to upload products')
-    return
-  }
   if (!uploadFile.value) {
     toast.error('Please select a file')
     return
@@ -384,7 +353,7 @@ const handleUpload = async () => {
             <Skeleton class="h-8 w-16" />
           </div>
           <div v-else class="text-2xl font-bold text-destructive">
-            {{ products.filter(p => p.quantity <= p.minStock).length }}
+            {{ products.filter(p => p.quantity <= p.min_stock).length }}
           </div>
         </CardContent>
       </Card>
@@ -406,17 +375,78 @@ const handleUpload = async () => {
               <Skeleton v-for="i in 7" :key="i" class="h-12 w-full" />
             </div>
           </div>
-          <div class="flex justify-between items-center px-2">
-            <Skeleton class="h-4 w-32" />
-            <div class="flex gap-2">
-              <Skeleton class="h-9 w-20" />
-              <Skeleton class="h-9 w-20" />
-            </div>
-          </div>
         </div>
         <DataTable v-else :columns="columns" :data="products" />
       </CardContent>
     </Card>
+
+    <!-- View details dialog -->
+    <Dialog v-model:open="showDetailsDialog">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Product Details</DialogTitle>
+        </DialogHeader>
+        <div v-if="selectedProduct" class="space-y-4 py-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <Label class="text-muted-foreground">Product Name</Label>
+              <p class="font-semibold">{{ selectedProduct.name }}</p>
+            </div>
+            <div>
+              <Label class="text-muted-foreground">SKU</Label>
+              <p class="font-mono">{{ selectedProduct.sku }}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <Label class="text-muted-foreground">Selling Price</Label>
+              <p class="font-semibold">{{ formatCurrency(selectedProduct.price.toString()) }}</p>
+            </div>
+            <div>
+              <Label class="text-muted-foreground">Cost Price</Label>
+              <p class="font-semibold">{{ formatCurrency(selectedProduct.cost_price.toString()) }}</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <Label class="text-muted-foreground">Current Stock</Label>
+              <div class="flex items-center gap-2 mt-1">
+                <Badge
+                  :variant="selectedProduct.quantity <= selectedProduct.min_stock ? 'destructive' : 'secondary'"
+                >
+                  {{ selectedProduct.quantity }} {{ selectedProduct.unit }}
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <Label class="text-muted-foreground">Category</Label>
+              <p>{{ selectedProduct.category || 'N/A' }}</p>
+            </div>
+          </div>
+
+          <template v-if="selectedProduct.metadata && Object.keys(selectedProduct.metadata).length > 0">
+            <Separator />
+            <div class="space-y-2">
+              <Label class="text-muted-foreground">Additional Details</Label>
+              <div class="grid grid-cols-2 gap-2">
+                <div
+                  v-for="(value, key) in selectedProduct.metadata"
+                  :key="key"
+                  class="rounded-md border px-3 py-2 bg-muted/30"
+                >
+                  <p class="text-xs text-muted-foreground capitalize">{{ key }}</p>
+                  <p class="text-sm font-medium">{{ value }}</p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <!-- Create / Edit dialog -->
     <Dialog v-model:open="showDialog">
@@ -605,74 +635,6 @@ const handleUpload = async () => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-
-    <!-- View details dialog -->
-    <Dialog v-model:open="showDetailsDialog">
-      <DialogContent class="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Product Details</DialogTitle>
-        </DialogHeader>
-        <div v-if="selectedProduct" class="space-y-4 py-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <Label class="text-muted-foreground">Product Name</Label>
-              <p class="font-semibold">{{ selectedProduct.name }}</p>
-            </div>
-            <div>
-              <Label class="text-muted-foreground">SKU</Label>
-              <p class="font-mono">{{ selectedProduct.sku }}</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <Label class="text-muted-foreground">Selling Price</Label>
-              <p class="font-semibold">{{ formatCurrency(selectedProduct.price.toString()) }}</p>
-            </div>
-            <div>
-              <Label class="text-muted-foreground">Cost Price</Label>
-              <p class="font-semibold">{{ formatCurrency(selectedProduct.costPrice.toString()) }}</p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <Label class="text-muted-foreground">Current Stock</Label>
-              <div class="flex items-center gap-2">
-                <Badge
-                  :variant="selectedProduct.quantity <= selectedProduct.minStock ? 'destructive' : 'secondary'"
-                >
-                  {{ selectedProduct.quantity }} {{ selectedProduct.unit }}
-                </Badge>
-              </div>
-            </div>
-            <div>
-              <Label class="text-muted-foreground">Category</Label>
-              <p>{{ selectedProduct.category || 'N/A' }}</p>
-            </div>
-          </div>
-
-          <template v-if="selectedProduct.metadata && Object.keys(selectedProduct.metadata).length > 0">
-            <Separator />
-            <div class="space-y-2">
-              <Label class="text-muted-foreground">Additional Details</Label>
-              <div class="grid grid-cols-2 gap-2">
-                <div
-                  v-for="(value, key) in selectedProduct.metadata"
-                  :key="key"
-                  class="rounded-md border px-3 py-2 bg-muted/30"
-                >
-                  <p class="text-xs text-muted-foreground capitalize">{{ key }}</p>
-                  <p class="text-sm font-medium">{{ value }}</p>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </DialogContent>
-    </Dialog>
 
     <!-- Upload Excel dialog -->
     <Dialog v-model:open="showUploadDialog">

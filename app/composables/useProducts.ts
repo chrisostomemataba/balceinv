@@ -6,17 +6,17 @@ interface Product {
   sku: string
   barcode?: string | null
   price: number
-  costPrice: number
+  cost_price: number
   quantity: number
-  minStock: number
-  wholesalePrice?: number | null
-  wholesaleMin?: number | null
+  min_stock: number
+  wholesale_price?: number | null
+  wholesale_min?: number | null
   category?: string | null
   unit: string
-  piecesPerUnit: number
+  pieces_per_unit: number
   metadata?: Record<string, any> | null
-  createdAt?: Date
-  updatedAt?: Date
+  created_at?: string
+  updated_at?: string
 }
 
 interface ProductFilters {

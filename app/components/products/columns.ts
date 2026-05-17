@@ -18,14 +18,14 @@ interface Product {
   sku: string
   barcode?: string | null
   price: number
-  costPrice: number
+  cost_price: number
   quantity: number
-  minStock: number
-  wholesalePrice?: number | null
-  wholesaleMin?: number | null
+  min_stock: number
+  wholesale_price?: number | null
+  wholesale_min?: number | null
   category?: string | null
   unit: string
-  piecesPerUnit: number
+  pieces_per_unit: number
   metadata?: Record<string, any> | null
 }
 
@@ -33,6 +33,8 @@ export interface ActionHandlers {
   onView: (product: Product) => void
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
+  canEdit: boolean
+  canDelete: boolean
 }
 
 const formatCurrency = (value: number): string => {
@@ -83,7 +85,7 @@ export const createColumns = (handlers: ActionHandlers): ColumnDef<Product>[] =>
         () => ['Stock', h(ArrowUpDown, { class: 'ml-2 h-4 w-4' })]),
     cell: ({ row }) => {
       const quantity = row.getValue('quantity') as number
-      const minStock = row.original.minStock
+      const minStock = row.original.min_stock
       const isLow = quantity <= minStock
       return h('div', { class: 'flex items-center gap-2' }, [
         isLow && h(AlertTriangle, { class: 'h-4 w-4 text-destructive' }),
@@ -96,6 +98,31 @@ export const createColumns = (handlers: ActionHandlers): ColumnDef<Product>[] =>
     enableHiding: false,
     cell: ({ row }) => {
       const product = row.original
+      const menuItems = [
+        h(DropdownMenuLabel, null, () => 'Actions'),
+        h(DropdownMenuSeparator),
+        h(DropdownMenuItem, { onClick: () => handlers.onView(product) }, () => [
+          h(Eye, { class: 'mr-2 h-4 w-4' }), 'View Details'
+        ]),
+      ]
+
+      if (handlers.canEdit) {
+        menuItems.push(
+          h(DropdownMenuItem, { onClick: () => handlers.onEdit(product) }, () => [
+            h(Pencil, { class: 'mr-2 h-4 w-4' }), 'Edit'
+          ])
+        )
+      }
+
+      if (handlers.canDelete) {
+        menuItems.push(h(DropdownMenuSeparator))
+        menuItems.push(
+          h(DropdownMenuItem, { class: 'text-destructive', onClick: () => handlers.onDelete(product) }, () => [
+            h(Trash2, { class: 'mr-2 h-4 w-4' }), 'Delete'
+          ])
+        )
+      }
+
       return h(DropdownMenu, null, {
         default: () => [
           h(DropdownMenuTrigger, { asChild: true }, () =>
@@ -104,20 +131,7 @@ export const createColumns = (handlers: ActionHandlers): ColumnDef<Product>[] =>
               h(MoreHorizontal, { class: 'h-4 w-4' })
             ])
           ),
-          h(DropdownMenuContent, { align: 'end' }, () => [
-            h(DropdownMenuLabel, null, () => 'Actions'),
-            h(DropdownMenuSeparator),
-            h(DropdownMenuItem, { onClick: () => handlers.onView(product) }, () => [
-              h(Eye, { class: 'mr-2 h-4 w-4' }), 'View Details'
-            ]),
-            h(DropdownMenuItem, { onClick: () => handlers.onEdit(product) }, () => [
-              h(Pencil, { class: 'mr-2 h-4 w-4' }), 'Edit'
-            ]),
-            h(DropdownMenuSeparator),
-            h(DropdownMenuItem, { class: 'text-destructive', onClick: () => handlers.onDelete(product) }, () => [
-              h(Trash2, { class: 'mr-2 h-4 w-4' }), 'Delete'
-            ]),
-          ])
+          h(DropdownMenuContent, { align: 'end' }, () => menuItems)
         ]
       })
     },
