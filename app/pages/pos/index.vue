@@ -219,9 +219,9 @@ const updateQuantity = (item: CartItem, change: number) => {
 
 // Set quantity directly
 const setQuantity = (item: CartItem, value: string) => {
-  const quantity = parseInt(value);
+  const quantity = Number.parseInt(value);
 
-  if (isNaN(quantity) || quantity <= 0) {
+  if (Number.isNaN(quantity) || quantity <= 0) {
     removeFromCart(item);
     return;
   }
