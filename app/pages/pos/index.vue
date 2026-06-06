@@ -47,6 +47,7 @@ import { useProducts } from '@/composables/useProducts'
 import { useAddons } from '@/composables/useAddons'
 import { useDiscounts } from '@/composables/useDiscounts'
 import { useSales } from '@/composables/useSales'
+import { usePrint } from '@/composables/usePrint'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ const { products, fetchProducts } = useProducts()
 const { addons: productAddons, fetchAddons } = useAddons()
 const { fetchActiveDiscount } = useDiscounts()
 const { createSale, loading: saleLoading } = useSales()
+const { printerEnabled, autoPrint, fetchPrinterStatus, printReceipt: sendPrintRequest } = usePrint()
 
 // ── Cart state — 3 independent slots ─────────────────────────────────────
 
@@ -115,6 +117,7 @@ const activeSlot = computed(() => cartSlots.value[activeSlotIndex.value]!)
 
 const lastReceiptNumber = ref('')
 const lastChange = ref(0)
+const lastSaleId = ref<number | null>(null)
 const showingSuccess = ref(false)
 
 // ── Search ────────────────────────────────────────────────────────────────
@@ -222,7 +225,7 @@ const canCheckout = computed(() => {
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await fetchProducts()
+  await Promise.all([fetchProducts(), fetchPrinterStatus()])
   loadSettings()
 })
 
@@ -579,6 +582,7 @@ const processCheckout = async () => {
     if (result) {
       lastReceiptNumber.value = result.receipt_number
       lastChange.value = result.change || 0
+      lastSaleId.value = result.id
       showingSuccess.value = true
 
       if (changeAmount.value > 0) {
@@ -593,6 +597,10 @@ const processCheckout = async () => {
         })
       }
 
+      if (printerEnabled.value && autoPrint.value) {
+        await sendPrintRequest(result.id, true)
+      }
+
       setTimeout(() => {
         clearActiveCart()
       }, 3500)
@@ -602,9 +610,9 @@ const processCheckout = async () => {
   }
 }
 
-const printReceipt = () => {
-  toast.success('Receipt sent to printer')
-  globalThis.print()
+const printReceipt = async () => {
+  if (!lastSaleId.value) return
+  await sendPrintRequest(lastSaleId.value, true)
 }
 
 // ── Payment method label/icon helpers ────────────────────────────────────
@@ -806,9 +814,14 @@ const paymentMethodIcon = (method: string) => {
               Change: {{ formatCurrency(lastChange) }}
             </p>
             <div class="flex gap-2 mt-2">
-              <Button variant="outline" size="sm" @click="printReceipt">
+              <Button
+                v-if="printerEnabled"
+                variant="outline"
+                size="sm"
+                @click="printReceipt"
+              >
                 <Printer class="h-4 w-4 mr-2" />
-                Print
+                Print Receipt
               </Button>
               <Button size="sm" @click="clearActiveCart">
                 Next Customer
