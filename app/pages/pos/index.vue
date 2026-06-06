@@ -1,11 +1,37 @@
 <script setup lang="ts">
-import { Plus, Minus, Trash2, Search, Barcode, ShoppingCart, CreditCard, Smartphone, Banknote, X, Pause, Play, Printer, Check } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
+import {
+  Search,
+  Barcode,
+  Plus,
+  Minus,
+  ShoppingCart,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Check,
+  Printer,
+  ImageOff,
+  X,
+  Puzzle,
+  Monitor,
+  Hash,
+  Delete,
+  ChevronRight,
+} from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,710 +41,1185 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+} from '@/components/ui/alert-dialog'
+import type { Product, ProductAddon } from '@/composables/useProducts'
+import { useProducts } from '@/composables/useProducts'
+import { useAddons } from '@/composables/useAddons'
+import { useDiscounts } from '@/composables/useDiscounts'
+import { useSales } from '@/composables/useSales'
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+interface SelectedAddon {
+  id: number
+  name: string
+  price: number
+}
 
 interface CartItem {
-  productId: number;
-  name: string;
-  sku: string;
-  price: number;
-  wholesalePrice?: number | null;
-  wholesaleMin?: number;
-  quantity: number;
-  isWholesale: boolean;
-  availableStock: number;
+  productId: number
+  name: string
+  sku: string
+  image: string | null
+  price: number
+  wholesalePrice: number | null
+  wholesaleMin: number
+  quantity: number
+  isWholesale: boolean
+  availableStock: number
+  manualDiscountPercent: number
+  appliedOfferName: string | null
+  selectedAddons: SelectedAddon[]
 }
 
-interface PausedCart {
-  id: string;
-  items: CartItem[];
-  timestamp: Date;
+interface CartSlot {
+  items: CartItem[]
+  paymentLines: PaymentLine[]
+  amountPaid: number
+  note: string
 }
 
-const { products, fetchProducts } = useProducts();
-const { createSale, loading } = useSales();
+type PaymentMethod = 'cash' | 'card' | 'mobile'
 
-// POS state
-const barcodeInput = ref('');
-const searchQuery = ref('');
-const cart = ref<CartItem[]>([]);
-const paymentType = ref<'cash' | 'card' | 'mobile'>('cash');
-const amountPaid = ref<number>(0);
+interface PaymentLine {
+  method: PaymentMethod
+  amount: number
+  confirmed: boolean
+}
 
-// Paused carts state
-const pausedCarts = ref<PausedCart[]>([]);
-const showPausedCartsPopover = ref(false);
+// ── Composables ───────────────────────────────────────────────────────────
 
-// Confirmation state
-const showConfirmDialog = ref(false);
+const { products, fetchProducts } = useProducts()
+const { addons: productAddons, fetchAddons } = useAddons()
+const { fetchActiveDiscount } = useDiscounts()
+const { createSale, loading: saleLoading } = useSales()
 
-// Success state
-const lastReceipt = ref('');
-const lastChange = ref(0);
-const showingSuccess = ref(false);
+// ── Cart state — 3 independent slots ─────────────────────────────────────
 
-// Computed
+const SLOT_COUNT = 3
+
+const createEmptySlot = (): CartSlot => ({
+  items: [],
+  paymentLines: [{ method: 'cash', amount: 0, confirmed: false }],
+  amountPaid: 0,
+  note: '',
+})
+
+const cartSlots = ref<CartSlot[]>(
+  Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
+)
+const activeSlotIndex = ref(0)
+const activeSlot = computed(() => cartSlots.value[activeSlotIndex.value]!)
+
+// ── Sale success state ────────────────────────────────────────────────────
+
+const lastReceiptNumber = ref('')
+const lastChange = ref(0)
+const showingSuccess = ref(false)
+
+// ── Search ────────────────────────────────────────────────────────────────
+
+const searchQuery = ref('')
+const barcodeQuery = ref('')
+const barcodeInputRef = ref<HTMLInputElement | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// ── Variant picker ────────────────────────────────────────────────────────
+
+const showVariantDialog = ref(false)
+const variantParentProduct = ref<Product | null>(null)
+const variantOptions = ref<Product[]>([])
+
+// ── Addon picker ──────────────────────────────────────────────────────────
+
+const showAddonDialog = ref(false)
+const addonTargetProduct = ref<Product | null>(null)
+const addonSelections = ref<SelectedAddon[]>([])
+const addonDialogLoading = ref(false)
+
+// ── Checkout confirmation ─────────────────────────────────────────────────
+
+const showConfirmDialog = ref(false)
+
+// ── On-screen numpad ──────────────────────────────────────────────────────
+
+const numpadEnabled = ref(false)
+const numpadTarget = ref<'cash' | 'card' | 'mobile' | null>(null)
+const numpadBuffer = ref('')
+
+// ── Customer display ──────────────────────────────────────────────────────
+
+const customerDisplayEnabled = ref(false)
+
+// ── Computed: filtered products ───────────────────────────────────────────
+
 const filteredProducts = computed(() => {
-  if (!searchQuery.value) return [];
-  const query = searchQuery.value.toLowerCase();
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return products.value.slice(0, 20)
   return products.value
-    .filter(product =>
-      product.name.toLowerCase().includes(query) ||
-      product.sku.toLowerCase().includes(query)
+    .filter(
+      product =>
+        product.name.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query),
     )
-    .slice(0, 5);
-});
+    .slice(0, 20)
+})
 
-const subtotal = computed(() => {
-  return cart.value.reduce((sum, item) => {
-    const itemPrice = item.isWholesale && item.wholesalePrice
+// ── Computed: cart totals ─────────────────────────────────────────────────
+
+const cartSubtotal = computed(() => {
+  return activeSlot.value.items.reduce((sum, item) => {
+    const basePrice = item.isWholesale && item.wholesalePrice
       ? item.wholesalePrice
-      : item.price;
-    return sum + (itemPrice * item.quantity);
-  }, 0);
-});
+      : item.price
 
-const total = computed(() => subtotal.value);
+    const addonTotal = item.selectedAddons.reduce((addonSum, addon) => addonSum + addon.price, 0)
+    const priceWithAddons = basePrice + addonTotal
 
-const totalItems = computed(() => {
-  return cart.value.reduce((sum, item) => sum + item.quantity, 0);
-});
+    const discountMultiplier = 1 - item.manualDiscountPercent / 100
+    const finalUnitPrice = priceWithAddons * discountMultiplier
 
-const change = computed(() => {
-  if (paymentType.value === 'cash' && amountPaid.value > 0) {
-    return Math.max(0, amountPaid.value - total.value);
-  }
-  return 0;
-});
+    return sum + finalUnitPrice * item.quantity
+  }, 0)
+})
+
+const cartTotal = computed(() => cartSubtotal.value)
+
+const totalItemCount = computed(() =>
+  activeSlot.value.items.reduce((sum, item) => sum + item.quantity, 0),
+)
+
+const slotItemCounts = computed(() =>
+  cartSlots.value.map(slot =>
+    slot.items.reduce((sum, item) => sum + item.quantity, 0),
+  ),
+)
+
+// ── Computed: payment ─────────────────────────────────────────────────────
+
+const paymentLinesTotal = computed(() =>
+  activeSlot.value.paymentLines.reduce((sum, line) => sum + (line.amount || 0), 0),
+)
+
+const changeAmount = computed(() => {
+  const overpayment = paymentLinesTotal.value - cartTotal.value
+  return Math.max(0, overpayment)
+})
+
+const hasPendingMobileConfirmation = computed(() =>
+  activeSlot.value.paymentLines.some(
+    line => line.method === 'mobile' && !line.confirmed,
+  ),
+)
 
 const canCheckout = computed(() => {
-  if (cart.value.length === 0) return false;
-  if (paymentType.value === 'cash') {
-    return amountPaid.value >= total.value;
-  }
-  return true;
-});
+  if (activeSlot.value.items.length === 0) return false
+  if (Math.abs(paymentLinesTotal.value - cartTotal.value) > 0.01 && paymentLinesTotal.value < cartTotal.value) return false
+  if (hasPendingMobileConfirmation.value) return false
+  return true
+})
 
-// Format currency
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-TZ', {
+// ── Lifecycle ─────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  await fetchProducts()
+  loadSettings()
+})
+
+const loadSettings = () => {
+  if (import.meta.client) {
+    numpadEnabled.value = localStorage.getItem('pos-numpad-enabled') === 'true'
+    customerDisplayEnabled.value = localStorage.getItem('pos-customer-display') === 'true'
+  }
+}
+
+// ── Customer display sync ─────────────────────────────────────────────────
+
+watch(
+  () => activeSlot.value.items,
+  items => {
+    if (!customerDisplayEnabled.value || !import.meta.client) return
+    localStorage.setItem(
+      'pos-display-data',
+      JSON.stringify({
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: getEffectiveUnitPrice(item),
+          lineTotal: getEffectiveUnitPrice(item) * item.quantity,
+        })),
+        total: cartTotal.value,
+        updatedAt: Date.now(),
+      }),
+    )
+  },
+  { deep: true },
+)
+
+// ── Effective price helpers ───────────────────────────────────────────────
+
+const getEffectiveUnitPrice = (item: CartItem): number => {
+  const basePrice = item.isWholesale && item.wholesalePrice
+    ? item.wholesalePrice
+    : item.price
+
+  const addonTotal = item.selectedAddons.reduce((sum, addon) => sum + addon.price, 0)
+  const priceWithAddons = basePrice + addonTotal
+  const discountMultiplier = 1 - item.manualDiscountPercent / 100
+
+  return priceWithAddons * discountMultiplier
+}
+
+const getLineTotalPrice = (item: CartItem): number =>
+  getEffectiveUnitPrice(item) * item.quantity
+
+// ── Format helpers ────────────────────────────────────────────────────────
+
+const formatCurrency = (value: number): string =>
+  new Intl.NumberFormat('en-TZ', {
     style: 'currency',
     currency: 'TZS',
     minimumFractionDigits: 0,
-  }).format(value);
-};
+  }).format(value)
 
-// Lifecycle
-onMounted(async () => {
-  await fetchProducts();
-  loadPausedCarts();
-  // Auto-focus amount paid for cash
-  if (paymentType.value === 'cash') {
-    amountPaid.value = 0;
-  }
-});
+// ── Barcode handler ───────────────────────────────────────────────────────
 
-// Handle barcode input
-const handleBarcodeInput = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const barcode = input.value.trim();
+const handleBarcodeInput = () => {
+  const barcode = barcodeQuery.value.trim()
+  if (!barcode) return
 
-  if (!barcode) return;
+  const matchedProduct = products.value.find(
+    product => product.barcode === barcode || product.sku === barcode,
+  )
 
-  const product = products.value.find(p =>
-    p.barcode === barcode || p.sku === barcode
-  );
-
-  if (product) {
-    addToCart(product);
-    barcodeInput.value = '';
+  if (matchedProduct) {
+    handleProductTapped(matchedProduct)
+    barcodeQuery.value = ''
   } else {
-    toast.error('Product not found');
+    toast.error('Product not found', { description: `No match for "${barcode}"` })
+    barcodeQuery.value = ''
   }
-};
+}
 
-// Add product to cart
-const addToCart = (product: any) => {
+// ── Product tapped — decides variant picker, addon picker, or direct add ──
+
+const handleProductTapped = async (product: Product) => {
   if (product.quantity <= 0) {
-    toast.error('Product out of stock');
-    return;
+    toast.error(`${product.name} is out of stock`)
+    return
   }
 
-  const existingItem = cart.value.find(item => item.productId === product.id);
+  if (product.parent_id == null && product.variants && product.variants.length > 0) {
+    variantParentProduct.value = product
+    variantOptions.value = product.variants
+    showVariantDialog.value = true
+    return
+  }
+
+  await resolveAddonsAndAdd(product)
+}
+
+const handleVariantSelected = async (variant: Product) => {
+  showVariantDialog.value = false
+  variantParentProduct.value = null
+  variantOptions.value = []
+  await resolveAddonsAndAdd(variant)
+}
+
+// ── Check for addons before adding to cart ────────────────────────────────
+
+const resolveAddonsAndAdd = async (product: Product) => {
+  addonDialogLoading.value = true
+  await fetchAddons(product.id)
+  addonDialogLoading.value = false
+
+  if (productAddons.value.length > 0) {
+    addonTargetProduct.value = product
+    addonSelections.value = []
+    showAddonDialog.value = true
+    return
+  }
+
+  await addToCart(product, [])
+}
+
+const handleAddonConfirmed = async () => {
+  showAddonDialog.value = false
+  if (!addonTargetProduct.value) return
+  await addToCart(addonTargetProduct.value, addonSelections.value)
+  addonTargetProduct.value = null
+  addonSelections.value = []
+}
+
+const toggleAddonSelection = (addon: ProductAddon) => {
+  const existingIndex = addonSelections.value.findIndex(selected => selected.id === addon.id)
+  if (existingIndex === -1) {
+    addonSelections.value.push({ id: addon.id, name: addon.name, price: addon.price })
+  } else {
+    addonSelections.value.splice(existingIndex, 1)
+  }
+}
+
+const isAddonSelected = (addon: ProductAddon): boolean =>
+  addonSelections.value.some(selected => selected.id === addon.id)
+
+// ── Add to cart ───────────────────────────────────────────────────────────
+
+const addToCart = async (product: Product, selectedAddons: SelectedAddon[]) => {
+  const existingItem = activeSlot.value.items.find(item => item.productId === product.id)
 
   if (existingItem) {
     if (existingItem.quantity >= product.quantity) {
-      toast.error('Insufficient stock');
-      return;
+      toast.error('Not enough stock')
+      return
     }
-    existingItem.quantity++;
-
-    const shouldBeWholesale = product.wholesalePrice &&
-      existingItem.quantity >= (product.wholesaleMin || 10);
-    existingItem.isWholesale = shouldBeWholesale;
+    existingItem.quantity++
+    existingItem.isWholesale = Boolean(
+      product.wholesale_price && existingItem.quantity >= (product.wholesale_min || 10),
+    )
   } else {
-    cart.value.push({
+    const appliedOffer = await fetchActiveDiscount(product.id, product.price)
+
+    const computeOfferDiscountPercent = (): number => {
+      if (!appliedOffer) return 0
+      if (appliedOffer.discount_type === 'percent') return appliedOffer.value
+      return (appliedOffer.value / product.price) * 100
+    }
+
+    const newItem: CartItem = {
       productId: product.id,
       name: product.name,
       sku: product.sku,
+      image: product.image ?? null,
       price: product.price,
-      wholesalePrice: product.wholesalePrice,
-      wholesaleMin: product.wholesaleMin,
+      wholesalePrice: product.wholesale_price ?? null,
+      wholesaleMin: product.wholesale_min || 10,
       quantity: 1,
       isWholesale: false,
-      availableStock: product.quantity
-    });
-  }
-
-  searchQuery.value = '';
-
-  // Auto-update amount paid for cash
-  if (paymentType.value === 'cash') {
-    amountPaid.value = total.value;
-  }
-};
-
-// Update quantity
-const updateQuantity = (item: CartItem, change: number) => {
-  const newQuantity = item.quantity + change;
-
-  if (newQuantity <= 0) {
-    removeFromCart(item);
-    return;
-  }
-
-  if (newQuantity > item.availableStock) {
-    toast.error('Insufficient stock');
-    return;
-  }
-
-  item.quantity = newQuantity;
-
-  const shouldBeWholesale = Boolean(item.wholesalePrice &&
-    item.quantity >= (item.wholesaleMin || 10));
-  item.isWholesale = shouldBeWholesale;
-
-  // Auto-update amount paid for cash
-  if (paymentType.value === 'cash') {
-    amountPaid.value = total.value;
-  }
-};
-
-// Set quantity directly
-const setQuantity = (item: CartItem, value: string) => {
-  const quantity = Number.parseInt(value);
-
-  if (Number.isNaN(quantity) || quantity <= 0) {
-    removeFromCart(item);
-    return;
-  }
-
-  if (quantity > item.availableStock) {
-    toast.error('Insufficient stock');
-    return;
-  }
-
-  item.quantity = quantity;
-
-  const shouldBeWholesale = Boolean(item.wholesalePrice &&
-    item.quantity >= (item.wholesaleMin || 10));
-  item.isWholesale = shouldBeWholesale;
-
-  // Auto-update amount paid for cash
-  if (paymentType.value === 'cash') {
-    amountPaid.value = total.value;
-  }
-};
-
-// Remove from cart
-const removeFromCart = (item: CartItem) => {
-  cart.value = cart.value.filter(cartItem => cartItem.productId !== item.productId);
-
-  // Auto-update amount paid for cash
-  if (paymentType.value === 'cash' && cart.value.length > 0) {
-    amountPaid.value = total.value;
-  }
-};
-
-// Clear cart
-const clearCart = () => {
-  cart.value = [];
-  amountPaid.value = 0;
-  showingSuccess.value = false;
-};
-
-// Pause cart
-const pauseCart = () => {
-  if (cart.value.length === 0) {
-    toast.error('Cart is empty');
-    return;
-  }
-
-  const pausedCart: PausedCart = {
-    id: `PAUSE-${Date.now()}`,
-    items: [...cart.value],
-    timestamp: new Date(),
-  };
-
-  pausedCarts.value.push(pausedCart);
-  savePausedCarts();
-
-  clearCart();
-  toast.success('Cart paused');
-};
-
-// Resume cart
-const resumeCart = (pausedCart: PausedCart) => {
-  if (cart.value.length > 0) {
-    toast.error('Please pause or clear current cart first');
-    return;
-  }
-
-  cart.value = [...pausedCart.items];
-  pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
-  savePausedCarts();
-  showPausedCartsPopover.value = false;
-
-  // Auto-update amount paid for cash
-  if (paymentType.value === 'cash') {
-    amountPaid.value = total.value;
-  }
-
-  toast.success('Cart resumed');
-};
-
-// Delete paused cart
-const deletePausedCart = (pausedCart: PausedCart) => {
-  pausedCarts.value = pausedCarts.value.filter(c => c.id !== pausedCart.id);
-  savePausedCarts();
-  toast.success('Paused cart deleted');
-};
-
-// Save/load paused carts
-const savePausedCarts = () => {
-  if (process.client) {
-    localStorage.setItem('pausedCarts', JSON.stringify(pausedCarts.value));
-  }
-};
-
-const loadPausedCarts = () => {
-  if (process.client) {
-    const saved = localStorage.getItem('pausedCarts');
-    if (saved) {
-      try {
-        pausedCarts.value = JSON.parse(saved);
-      } catch (error) {
-        console.error('Error loading paused carts:', error);
-      }
+      availableStock: product.quantity,
+      manualDiscountPercent: computeOfferDiscountPercent(),
+      appliedOfferName: appliedOffer ? appliedOffer.name : null,
+      selectedAddons,
     }
-  }
-};
 
-// Format paused time
-const formatPausedTime = (date: Date): string => {
-  const now = new Date();
-  const diff = now.getTime() - new Date(date).getTime();
-  const minutes = Math.floor(diff / 60000);
-
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(date).toLocaleDateString();
-};
-
-// Open confirmation
-const openConfirmation = () => {
-  if (!canCheckout.value) {
-    if (cart.value.length === 0) {
-      toast.error('Cart is empty');
-    } else if (paymentType.value === 'cash' && amountPaid.value < total.value) {
-      toast.error('Insufficient payment amount');
-    }
-    return;
+    activeSlot.value.items.push(newItem)
   }
 
-  showConfirmDialog.value = true;
-};
+  syncPaymentAmountForCash()
+  searchQuery.value = ''
+}
 
-// Process checkout
+// ── Cart item actions ─────────────────────────────────────────────────────
+
+const incrementItem = (item: CartItem) => {
+  if (item.quantity >= item.availableStock) {
+    toast.error('Not enough stock')
+    return
+  }
+  item.quantity++
+  item.isWholesale = Boolean(
+    item.wholesalePrice && item.quantity >= item.wholesaleMin,
+  )
+  syncPaymentAmountForCash()
+}
+
+const decrementItem = (item: CartItem) => {
+  if (item.quantity <= 1) {
+    removeItem(item)
+    return
+  }
+  item.quantity--
+  item.isWholesale = Boolean(
+    item.wholesalePrice && item.quantity >= item.wholesaleMin,
+  )
+  syncPaymentAmountForCash()
+}
+
+const setItemQuantity = (item: CartItem, rawValue: string) => {
+  const parsedQuantity = Number.parseInt(rawValue)
+  if (Number.isNaN(parsedQuantity) || parsedQuantity <= 0) {
+    removeItem(item)
+    return
+  }
+  if (parsedQuantity > item.availableStock) {
+    toast.error('Not enough stock')
+    return
+  }
+  item.quantity = parsedQuantity
+  item.isWholesale = Boolean(
+    item.wholesalePrice && item.quantity >= item.wholesaleMin,
+  )
+  syncPaymentAmountForCash()
+}
+
+const removeItem = (item: CartItem) => {
+  activeSlot.value.items = activeSlot.value.items.filter(
+    cartItem => cartItem.productId !== item.productId,
+  )
+  syncPaymentAmountForCash()
+}
+
+const clearActiveCart = () => {
+  cartSlots.value[activeSlotIndex.value] = createEmptySlot()
+  showingSuccess.value = false
+}
+
+// ── Payment lines ─────────────────────────────────────────────────────────
+
+const addPaymentLine = (method: PaymentMethod) => {
+  const alreadyExists = activeSlot.value.paymentLines.some(line => line.method === method)
+  if (alreadyExists) return
+  activeSlot.value.paymentLines.push({ method, amount: 0, confirmed: false })
+}
+
+const removePaymentLine = (index: number) => {
+  if (activeSlot.value.paymentLines.length <= 1) return
+  activeSlot.value.paymentLines.splice(index, 1)
+}
+
+const confirmMobilePayment = (index: number) => {
+  const line = activeSlot.value.paymentLines[index]
+  if (line) line.confirmed = true
+  toast.success('Mobile payment confirmed')
+}
+
+const syncPaymentAmountForCash = () => {
+  const cashLine = activeSlot.value.paymentLines.find(line => line.method === 'cash')
+  if (cashLine && activeSlot.value.paymentLines.length === 1) {
+    cashLine.amount = cartTotal.value
+  }
+}
+
+const availablePaymentMethods = computed(() => {
+  const usedMethods = new Set(activeSlot.value.paymentLines.map(line => line.method))
+  return (['cash', 'card', 'mobile'] as const).filter(method => !usedMethods.has(method))
+})
+
+// ── Numpad ────────────────────────────────────────────────────────────────
+
+const openNumpad = (method: PaymentMethod) => {
+  if (!numpadEnabled.value) return
+  numpadTarget.value = method
+  const existingLine = activeSlot.value.paymentLines.find(line => line.method === method)
+  numpadBuffer.value = existingLine?.amount ? String(existingLine.amount) : ''
+}
+
+const numpadPress = (key: string) => {
+  if (key === 'DEL') {
+    numpadBuffer.value = numpadBuffer.value.slice(0, -1)
+  } else if (key === 'C') {
+    numpadBuffer.value = ''
+  } else {
+    if (numpadBuffer.value.length >= 10) return
+    numpadBuffer.value += key
+  }
+}
+
+const numpadConfirm = () => {
+  if (!numpadTarget.value) return
+  const value = Number.parseFloat(numpadBuffer.value) || 0
+  const targetLine = activeSlot.value.paymentLines.find(
+    line => line.method === numpadTarget.value,
+  )
+  if (targetLine) targetLine.amount = value
+  numpadTarget.value = null
+  numpadBuffer.value = ''
+}
+
+const numpadKeys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', 'DEL']
+
+// ── Customer display ──────────────────────────────────────────────────────
+
+const openCustomerDisplay = () => {
+  if (import.meta.client) {
+    globalThis.open('/display', '_blank', 'width=1024,height=768')
+  }
+}
+
+const toggleCustomerDisplay = () => {
+  customerDisplayEnabled.value = !customerDisplayEnabled.value
+  if (import.meta.client) {
+    localStorage.setItem('pos-customer-display', String(customerDisplayEnabled.value))
+  }
+}
+
+const toggleNumpad = () => {
+  numpadEnabled.value = !numpadEnabled.value
+  if (import.meta.client) {
+    localStorage.setItem('pos-numpad-enabled', String(numpadEnabled.value))
+  }
+  toast.success(numpadEnabled.value ? 'Numpad enabled' : 'Numpad disabled')
+}
+
+// ── Checkout ──────────────────────────────────────────────────────────────
+
 const processCheckout = async () => {
-  showConfirmDialog.value = false;
+  showConfirmDialog.value = false
+
+  const saleItems = activeSlot.value.items.map(item => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    isWholesale: item.isWholesale,
+  }))
+
+  const primaryPaymentLine = activeSlot.value.paymentLines[0]!
+  const paymentType = activeSlot.value.paymentLines.length === 1
+    ? primaryPaymentLine.method
+    : 'cash'
 
   try {
-    const saleItems = cart.value.map(item => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      isWholesale: item.isWholesale
-    }))
-
     const result = await createSale({
       items: saleItems,
-      paymentType: paymentType.value,
-      saleType: cart.value.some(item => item.isWholesale) ? 'wholesale' : 'retail',
-      amountPaid: paymentType.value === 'cash' ? amountPaid.value : undefined,
-      useEfd: true
+      paymentType,
+      saleType: activeSlot.value.items.some(item => item.isWholesale) ? 'wholesale' : 'retail',
+      amountPaid: paymentType === 'cash' ? paymentLinesTotal.value : undefined,
+      useEfd: true,
     })
 
     if (result) {
-      // Store receipt info
-      lastReceipt.value = result.receipt_number;
-      lastChange.value = result.change || 0;
+      lastReceiptNumber.value = result.receipt_number
+      lastChange.value = result.change || 0
+      showingSuccess.value = true
 
-      // Show success state briefly
-      showingSuccess.value = true;
-
-      // Show success toast with change
-      if (paymentType.value === 'cash' && lastChange.value > 0) {
-        toast.success('Sale completed!', {
-          description: `Change: ${formatCurrency(lastChange.value)}`,
-          duration: 5000,
-        });
+      if (changeAmount.value > 0) {
+        toast.success('Sale complete!', {
+          description: `Change: ${formatCurrency(changeAmount.value)}`,
+          duration: 6000,
+        })
       } else {
-        toast.success('Sale completed!', {
-          description: `Receipt: ${lastReceipt.value}`,
-          duration: 3000,
-        });
+        toast.success('Sale complete!', {
+          description: `Receipt: ${result.receipt_number}`,
+          duration: 4000,
+        })
       }
 
-      // Auto-clear after 3 seconds for next customer
       setTimeout(() => {
-        clearCart();
-      }, 3000);
+        clearActiveCart()
+      }, 3500)
     }
-  } catch (error) {
-    console.error('Checkout failed:', error);
+  } catch {
+    // toast already shown in composable
   }
-};
+}
 
-// Print receipt
 const printReceipt = () => {
-  // This will trigger browser print dialog
-  // In production, you'd send to thermal printer
-  toast.success('Receipt sent to printer');
-  window.print();
-};
+  toast.success('Receipt sent to printer')
+  globalThis.print()
+}
 
-// Watch payment type
-watch(paymentType, (newType) => {
-  if (newType === 'cash' && cart.value.length > 0) {
-    amountPaid.value = total.value;
-  } else {
-    amountPaid.value = 0;
-  }
-});
+// ── Payment method label/icon helpers ────────────────────────────────────
+
+const paymentMethodLabel = (method: string): string => {
+  if (method === 'cash') return 'Cash'
+  if (method === 'card') return 'Card'
+  if (method === 'mobile') return 'Mobile Money'
+  return method
+}
+
+const paymentMethodIcon = (method: string) => {
+  if (method === 'card') return CreditCard
+  if (method === 'mobile') return Smartphone
+  return Banknote
+}
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-background">
-    <!-- Header -->
-    <div class="border-b p-4">
-      <div class="container mx-auto flex justify-between items-center">
-        <h1 class="text-2xl font-bold">Point of Sale</h1>
-        <Button variant="outline" @click="$router.push('/sales')">
-          View Sales
+  <div class="flex flex-col h-screen overflow-hidden bg-background">
+
+    <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+    <header class="flex items-center justify-between px-4 py-2 border-b shrink-0 bg-background">
+      <div class="flex items-center gap-2">
+        <ShoppingCart class="h-5 w-5 text-muted-foreground" />
+        <span class="font-semibold text-sm">Point of Sale</span>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <Button variant="ghost" size="sm" @click="toggleNumpad">
+          <Hash class="h-4 w-4 mr-1.5" />
+          {{ numpadEnabled ? 'Numpad On' : 'Numpad Off' }}
+        </Button>
+        <Button variant="ghost" size="sm" @click="toggleCustomerDisplay">
+          <Monitor class="h-4 w-4 mr-1.5" />
+          {{ customerDisplayEnabled ? 'Display On' : 'Display Off' }}
+        </Button>
+        <Button
+          v-if="customerDisplayEnabled"
+          variant="outline"
+          size="sm"
+          @click="openCustomerDisplay"
+        >
+          <Monitor class="h-4 w-4 mr-1.5" />
+          Open Screen
+        </Button>
+        <Button variant="ghost" size="sm" @click="$router.push('/sales')">
+          Sales History
         </Button>
       </div>
+    </header>
+
+    <!-- ── Cart slot tabs ───────────────────────────────────────────────── -->
+    <div class="flex items-center gap-1 px-4 py-2 border-b shrink-0 bg-muted/30">
+      <button
+        v-for="(slot, index) in cartSlots"
+        :key="index"
+        class="flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors"
+        :class="activeSlotIndex === index
+          ? 'bg-background border shadow-sm text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-background/60'"
+        @click="activeSlotIndex = index; showingSuccess = false"
+      >
+        Cart {{ index + 1 }}
+        <span
+          v-if="slotItemCounts[index] > 0"
+          class="inline-flex items-center justify-center size-5 rounded-full text-xs font-bold"
+          :class="activeSlotIndex === index ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+        >
+          {{ slotItemCounts[index] }}
+        </span>
+      </button>
     </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 overflow-hidden">
-      <div class="container mx-auto h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Left: Products & Cart -->
-        <div class="lg:col-span-2 space-y-4">
-          <!-- Search -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-lg">Scan or Search Product</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-3">
-              <div class="relative">
-                <Barcode class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input v-model="barcodeInput" placeholder="Scan barcode or enter SKU..." class="pl-10"
-                  @keyup.enter="handleBarcodeInput" />
-              </div>
+    <!-- ── Main content ─────────────────────────────────────────────────── -->
+    <div class="flex flex-1 overflow-hidden">
 
-              <div class="relative">
-                <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input v-model="searchQuery" placeholder="Search products by name..." class="pl-10" />
-                <div v-if="filteredProducts.length > 0"
-                  class="absolute w-full mt-1 bg-popover border rounded-md shadow-lg z-10">
-                  <div v-for="product in filteredProducts" :key="product.id" class="p-3 hover:bg-accent cursor-pointer"
-                    @click="addToCart(product)">
-                    <div class="flex justify-between items-center">
-                      <div>
-                        <p class="font-medium">{{ product.name }}</p>
-                        <p class="text-sm text-muted-foreground">{{ product.sku }}</p>
-                      </div>
-                      <div class="text-right">
-                        <p class="font-semibold">{{ formatCurrency(product.price) }}</p>
-                        <p class="text-xs text-muted-foreground">Stock: {{ product.quantity }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <!-- Left: product search + grid -->
+      <div class="flex flex-col flex-1 overflow-hidden border-r">
 
-          <!-- Cart -->
-          <Card class="flex-1">
-            <CardHeader>
-              <div class="flex justify-between items-center">
-                <CardTitle>Cart ({{ totalItems }} items)</CardTitle>
-                <div class="flex gap-2">
-                  <Button v-if="cart.length > 0" variant="outline" size="sm" @click="pauseCart">
-                    <Pause class="h-4 w-4 mr-2" />
-                    Pause
-                  </Button>
-                  <Button v-if="cart.length > 0" variant="ghost" size="sm" @click="clearCart">
-                    <X class="h-4 w-4 mr-2" />
-                    Clear
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea class="h-[400px]">
-                <!-- Empty state -->
-                <div v-if="cart.length === 0 && !showingSuccess" class="text-center py-12 text-muted-foreground">
-                  <ShoppingCart class="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Cart is empty</p>
-                  <p class="text-sm mt-1">Scan or search for products to add</p>
-                </div>
-
-                <!-- Success state -->
-                <div v-else-if="showingSuccess" class="text-center py-12">
-                  <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Check class="h-8 w-8 text-green-600" />
-                  </div>
-                  <h3 class="text-lg font-semibold mb-2">Sale Completed!</h3>
-                  <p class="text-sm text-muted-foreground mb-1">Receipt: {{ lastReceipt }}</p>
-                  <p v-if="lastChange > 0" class="text-lg font-bold text-green-600 mb-4">
-                    Change: {{ formatCurrency(lastChange) }}
-                  </p>
-                  <div class="flex gap-2 justify-center mt-4">
-                    <Button variant="outline" size="sm" @click="printReceipt">
-                      <Printer class="h-4 w-4 mr-2" />
-                      Print Receipt
-                    </Button>
-                    <Button size="sm" @click="clearCart">
-                      Next Customer
-                    </Button>
-                  </div>
-                </div>
-
-                <!-- Cart items -->
-                <div v-else class="space-y-3">
-                  <div v-for="item in cart" :key="item.productId" class="flex items-center gap-3 p-3 border rounded-lg">
-                    <div class="flex-1 min-w-0">
-                      <p class="font-medium truncate">{{ item.name }}</p>
-                      <p class="text-sm text-muted-foreground">{{ item.sku }}</p>
-                      <div class="flex items-center gap-2 mt-1">
-                        <p class="text-sm font-semibold">
-                          {{ formatCurrency(item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price)
-                          }}
-                        </p>
-                        <Badge v-if="item.isWholesale" variant="default" class="text-xs">Wholesale</Badge>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                      <Button variant="outline" size="icon" @click="updateQuantity(item, -1)">
-                        <Minus class="h-4 w-4" />
-                      </Button>
-                      <Input :model-value="item.quantity"
-                        @input="setQuantity(item, ($event.target as HTMLInputElement).value)" class="w-16 text-center"
-                        type="number" min="1" />
-                      <Button variant="outline" size="icon" @click="updateQuantity(item, 1)">
-                        <Plus class="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div class="text-right min-w-20">
-                      <p class="font-bold">
-                        {{ formatCurrency((item.isWholesale && item.wholesalePrice ? item.wholesalePrice : item.price) *
-                        item.quantity) }}
-                      </p>
-                    </div>
-
-                    <Button variant="ghost" size="icon" @click="removeFromCart(item)">
-                      <Trash2 class="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        <!-- Right: Payment & Summary -->
-        <div class="space-y-4">
-          <!-- Order Summary & Payment -->
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              <!-- Total -->
-              <div class="space-y-2">
-                <div class="flex justify-between text-2xl font-bold">
-                  <span>Total</span>
-                  <span>{{ formatCurrency(total) }}</span>
-                </div>
-                <p class="text-xs text-muted-foreground text-center">* Price includes 18% VAT</p>
-              </div>
-
-              <Separator />
-
-              <!-- Payment Method -->
-              <div class="space-y-2">
-                <p class="text-sm font-medium">Payment Method</p>
-                <Select v-model="paymentType">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">
-                      <div class="flex items-center gap-2">
-                        <Banknote class="h-4 w-4" />
-                        Cash
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="card">
-                      <div class="flex items-center gap-2">
-                        <CreditCard class="h-4 w-4" />
-                        Card
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="mobile">
-                      <div class="flex items-center gap-2">
-                        <Smartphone class="h-4 w-4" />
-                        Mobile Money
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <!-- Cash Payment -->
-              <div v-if="paymentType === 'cash'" class="space-y-2">
-                <p class="text-sm font-medium">Amount Paid</p>
-                <Input v-model.number="amountPaid" type="number" placeholder="Enter amount" :min="total" step="1000"
-                  class="text-lg" />
-                <div v-if="amountPaid > 0" class="flex justify-between text-sm p-2 bg-muted rounded">
-                  <span class="text-muted-foreground">Change:</span>
-                  <span :class="change < 0 ? 'text-destructive font-bold' : 'text-green-600 font-bold text-lg'">
-                    {{ formatCurrency(change) }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Checkout Button -->
-              <Button class="w-full" size="lg" :disabled="!canCheckout || loading" @click="openConfirmation">
-                <ShoppingCart class="mr-2 h-5 w-5" />
-                {{ loading ? 'Processing...' : 'Complete Sale' }}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-
-    <!-- Floating Paused Carts Button -->
-    <Popover v-model:open="showPausedCartsPopover">
-      <PopoverTrigger as-child>
-        <Button v-if="pausedCarts.length > 0" class="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
-          size="icon">
-          <div class="relative">
-            <Play class="h-6 w-6" />
-            <Badge class="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0" variant="destructive">
-              {{ pausedCarts.length }}
-            </Badge>
+        <!-- Search bar -->
+        <div class="flex gap-2 p-3 border-b shrink-0">
+          <div class="relative flex-1">
+            <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref="barcodeInputRef"
+              v-model="barcodeQuery"
+              placeholder="Scan barcode or SKU..."
+              class="pl-9"
+              @keyup.enter="handleBarcodeInput"
+            />
           </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent class="w-80" align="end" side="top">
-        <div class="space-y-2">
-          <h4 class="font-semibold">Paused Carts</h4>
-          <ScrollArea class="max-h-[300px]">
-            <div class="space-y-2">
-              <div v-for="pausedCart in pausedCarts" :key="pausedCart.id" class="border rounded-lg p-3 space-y-2">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <p class="font-medium">{{ pausedCart.items.length }} items</p>
-                    <p class="text-xs text-muted-foreground">{{ formatPausedTime(pausedCart.timestamp) }}</p>
-                  </div>
-                  <div class="flex gap-1">
-                    <Button size="sm" variant="outline" @click="resumeCart(pausedCart)">
-                      <Play class="h-3 w-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" @click="deletePausedCart(pausedCart)">
-                      <Trash2 class="h-3 w-3" />
-                    </Button>
+          <div class="relative flex-1">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref="searchInputRef"
+              v-model="searchQuery"
+              placeholder="Search products..."
+              class="pl-9"
+            />
+          </div>
+        </div>
+
+        <!-- Product grid -->
+        <ScrollArea class="flex-1">
+          <div class="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            <button
+              v-for="product in filteredProducts"
+              :key="product.id"
+              class="flex flex-col items-start rounded-lg border bg-card text-left transition-all hover:border-primary hover:shadow-sm active:scale-[0.98] overflow-hidden"
+              :class="product.quantity <= 0 ? 'opacity-40 pointer-events-none' : ''"
+              @click="handleProductTapped(product)"
+            >
+              <!-- Image frame -->
+              <div class="w-full aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
+                <img
+                  v-if="product.image"
+                  :src="product.image"
+                  :alt="product.name"
+                  class="w-full h-full object-cover"
+                />
+                <ImageOff v-else class="size-10 text-muted-foreground/25" />
+
+                <!-- Out of stock overlay -->
+                <div
+                  v-if="product.quantity <= 0"
+                  class="absolute inset-0 bg-background/70 flex items-center justify-center"
+                >
+                  <Badge variant="destructive" class="text-xs">Out of Stock</Badge>
+                </div>
+
+                <!-- Variant indicator -->
+                <div
+                  v-if="product.variants && product.variants.length > 0"
+                  class="absolute top-1.5 right-1.5"
+                >
+                  <Badge variant="secondary" class="text-xs px-1.5">
+                    {{ product.variants.length }} variants
+                  </Badge>
+                </div>
+
+                <!-- Low stock warning -->
+                <div
+                  v-if="product.quantity > 0 && product.quantity <= product.min_stock"
+                  class="absolute bottom-0 left-0 right-0 bg-orange-500/80 text-white text-xs text-center py-0.5"
+                >
+                  Low: {{ product.quantity }} left
+                </div>
+              </div>
+
+              <!-- Info -->
+              <div class="p-2 w-full flex flex-col gap-0.5">
+                <p class="text-sm font-semibold truncate leading-tight">{{ product.name }}</p>
+                <p class="text-xs text-muted-foreground font-mono truncate">{{ product.sku }}</p>
+                <p class="text-sm font-bold mt-0.5 text-primary">{{ formatCurrency(product.price) }}</p>
+              </div>
+            </button>
+
+            <div
+              v-if="filteredProducts.length === 0"
+              class="col-span-full py-16 text-center text-muted-foreground"
+            >
+              <Search class="size-10 mx-auto mb-3 opacity-30" />
+              <p class="text-sm">No products found</p>
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
+
+      <!-- Right: cart + payment -->
+      <div class="flex flex-col w-[400px] xl:w-[440px] shrink-0 overflow-hidden">
+
+        <!-- Cart items -->
+        <ScrollArea class="flex-1 border-b">
+          <!-- Empty cart -->
+          <div
+            v-if="activeSlot.items.length === 0 && !showingSuccess"
+            class="h-full flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground"
+          >
+            <ShoppingCart class="size-12 opacity-20" />
+            <p class="text-sm">Cart is empty</p>
+            <p class="text-xs">Scan or tap a product to begin</p>
+          </div>
+
+          <!-- Success state -->
+          <div
+            v-else-if="showingSuccess"
+            class="h-full flex flex-col items-center justify-center gap-3 py-12 text-center px-6"
+          >
+            <div class="size-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Check class="size-8 text-primary" />
+            </div>
+            <p class="text-xl font-bold">Sale Complete!</p>
+            <p class="text-sm text-muted-foreground">Receipt: {{ lastReceiptNumber }}</p>
+            <p
+              v-if="lastChange > 0"
+              class="text-2xl font-bold"
+            >
+              Change: {{ formatCurrency(lastChange) }}
+            </p>
+            <div class="flex gap-2 mt-2">
+              <Button variant="outline" size="sm" @click="printReceipt">
+                <Printer class="h-4 w-4 mr-2" />
+                Print
+              </Button>
+              <Button size="sm" @click="clearActiveCart">
+                Next Customer
+              </Button>
+            </div>
+          </div>
+
+          <!-- Cart items list -->
+          <div v-else class="flex flex-col gap-2 p-3">
+            <div
+              v-for="item in activeSlot.items"
+              :key="item.productId"
+              class="rounded-lg border bg-card overflow-hidden"
+            >
+              <div class="flex items-start gap-3 p-3">
+                <!-- Product image thumbnail -->
+                <div class="size-12 rounded-md border bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+                  <img
+                    v-if="item.image"
+                    :src="item.image"
+                    :alt="item.name"
+                    class="size-full object-cover"
+                  />
+                  <ImageOff v-else class="size-5 text-muted-foreground/30" />
+                </div>
+
+                <!-- Item info -->
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm truncate">{{ item.name }}</p>
+                  <p class="text-xs text-muted-foreground font-mono">{{ item.sku }}</p>
+
+                  <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <Badge v-if="item.isWholesale" variant="secondary" class="text-xs">Wholesale</Badge>
+                    <Badge
+                      v-if="item.appliedOfferName"
+                      variant="outline"
+                      class="text-xs border-primary/40 text-primary"
+                    >
+                      {{ item.appliedOfferName }}
+                    </Badge>
+                    <span v-if="item.selectedAddons.length > 0" class="text-xs text-muted-foreground">
+                      + {{ item.selectedAddons.map(addon => addon.name).join(', ') }}
+                    </span>
                   </div>
                 </div>
-                <div class="text-xs space-y-1">
-                  <div v-for="item in pausedCart.items.slice(0, 2)" :key="item.productId" class="flex justify-between">
-                    <span class="truncate">{{ item.name }} x{{ item.quantity }}</span>
-                  </div>
-                  <p v-if="pausedCart.items.length > 2" class="text-muted-foreground">
-                    +{{ pausedCart.items.length - 2 }} more
-                  </p>
+
+                <!-- Remove -->
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="shrink-0 text-muted-foreground hover:text-destructive h-8 w-8"
+                  @click="removeItem(item)"
+                >
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+
+              <!-- Quantity + price row -->
+              <div class="flex items-center gap-2 px-3 pb-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="h-8 w-8 shrink-0"
+                  @click="decrementItem(item)"
+                >
+                  <Minus class="h-3 w-3" />
+                </Button>
+
+                <Input
+                  :model-value="item.quantity"
+                  @input="setItemQuantity(item, ($event.target as HTMLInputElement).value)"
+                  type="number"
+                  min="1"
+                  class="w-14 h-8 text-center text-sm p-1"
+                />
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="h-8 w-8 shrink-0"
+                  @click="incrementItem(item)"
+                >
+                  <Plus class="h-3 w-3" />
+                </Button>
+
+                <!-- Manual discount % -->
+                <div class="flex items-center gap-1 flex-1">
+                  <Input
+                    :model-value="item.manualDiscountPercent || ''"
+                    @input="item.manualDiscountPercent = Number.parseFloat(($event.target as HTMLInputElement).value) || 0; syncPaymentAmountForCash()"
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="0%"
+                    class="w-14 h-8 text-center text-sm p-1"
+                  />
+                  <span class="text-xs text-muted-foreground">off</span>
                 </div>
+
+                <!-- Line total -->
+                <p class="text-sm font-bold ml-auto tabular-nums whitespace-nowrap">
+                  {{ formatCurrency(getLineTotalPrice(item)) }}
+                </p>
               </div>
             </div>
-          </ScrollArea>
-        </div>
-      </PopoverContent>
-    </Popover>
+          </div>
+        </ScrollArea>
 
-    <!-- Confirmation Dialog -->
+        <!-- Payment section -->
+        <div class="shrink-0 flex flex-col gap-0 border-t bg-background">
+
+          <!-- Order total -->
+          <div class="flex items-center justify-between px-4 py-3 border-b">
+            <span class="text-sm text-muted-foreground">
+              {{ totalItemCount }} item{{ totalItemCount !== 1 ? 's' : '' }}
+            </span>
+            <span class="text-2xl font-bold tabular-nums">{{ formatCurrency(cartTotal) }}</span>
+          </div>
+
+          <!-- Payment lines -->
+          <div class="flex flex-col gap-2 px-4 py-3 border-b">
+            <div
+              v-for="(line, index) in activeSlot.paymentLines"
+              :key="index"
+              class="flex items-center gap-2"
+            >
+              <component
+                :is="paymentMethodIcon(line.method)"
+                class="h-4 w-4 text-muted-foreground shrink-0"
+              />
+              <span class="text-sm font-medium w-24 shrink-0">{{ paymentMethodLabel(line.method) }}</span>
+
+              <!-- Numpad trigger or regular input -->
+              <button
+                v-if="numpadEnabled"
+                class="flex-1 h-9 rounded-md border bg-background px-3 text-sm text-left tabular-nums"
+                :class="numpadTarget === line.method ? 'border-primary ring-1 ring-primary' : ''"
+                @click="openNumpad(line.method)"
+              >
+                {{ line.amount > 0 ? formatCurrency(line.amount) : 'Tap to enter' }}
+              </button>
+
+              <Input
+                v-else
+                :model-value="line.amount || ''"
+                @input="line.amount = Number.parseFloat(($event.target as HTMLInputElement).value) || 0"
+                type="number"
+                min="0"
+                placeholder="Amount"
+                class="flex-1 h-9 text-sm tabular-nums"
+              />
+
+              <!-- Mobile confirmation -->
+              <Button
+                v-if="line.method === 'mobile' && !line.confirmed"
+                size="sm"
+                variant="outline"
+                class="shrink-0 text-xs h-9"
+                @click="confirmMobilePayment(index)"
+              >
+                Confirm
+              </Button>
+              <Check
+                v-else-if="line.method === 'mobile' && line.confirmed"
+                class="h-4 w-4 text-primary shrink-0"
+              />
+
+              <!-- Remove payment line -->
+              <Button
+                v-if="activeSlot.paymentLines.length > 1"
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 shrink-0 text-muted-foreground"
+                @click="removePaymentLine(index)"
+              >
+                <X class="h-3 w-3" />
+              </Button>
+            </div>
+
+            <!-- Add payment method -->
+            <div v-if="availablePaymentMethods.length > 0" class="flex gap-1 flex-wrap">
+              <span class="text-xs text-muted-foreground self-center">Split with:</span>
+              <button
+                v-for="method in availablePaymentMethods"
+                :key="method"
+                class="flex items-center gap-1 text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
+                @click="addPaymentLine(method)"
+              >
+                <component :is="paymentMethodIcon(method)" class="h-3 w-3" />
+                {{ paymentMethodLabel(method) }}
+              </button>
+            </div>
+
+            <!-- Change -->
+            <div
+              v-if="changeAmount > 0"
+              class="flex items-center justify-between rounded-md bg-primary/5 border border-primary/20 px-3 py-2"
+            >
+              <span class="text-sm font-medium">Change to give</span>
+              <span class="text-lg font-bold tabular-nums">{{ formatCurrency(changeAmount) }}</span>
+            </div>
+
+            <!-- Pending mobile confirmation banner -->
+            <div
+              v-if="hasPendingMobileConfirmation"
+              class="rounded-md bg-orange-500/10 border border-orange-500/20 px-3 py-2 text-sm text-orange-700 dark:text-orange-400"
+            >
+              Waiting for mobile payment confirmation — tap "Confirm" after the teller verifies receipt.
+            </div>
+          </div>
+
+          <!-- Numpad -->
+          <div v-if="numpadEnabled && numpadTarget" class="px-4 py-3 border-b">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-muted-foreground">
+                Entering amount for {{ paymentMethodLabel(numpadTarget) }}
+              </span>
+              <span class="text-lg font-bold tabular-nums">
+                {{ numpadBuffer ? formatCurrency(Number.parseFloat(numpadBuffer)) : '—' }}
+              </span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button
+                v-for="key in numpadKeys"
+                :key="key"
+                class="h-12 rounded-md border text-sm font-semibold transition-colors"
+                :class="key === 'DEL' || key === 'C'
+                  ? 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                  : 'bg-background hover:bg-accent'"
+                @click="numpadPress(key)"
+              >
+                <Delete v-if="key === 'DEL'" class="h-4 w-4 mx-auto" />
+                <X v-else-if="key === 'C'" class="h-4 w-4 mx-auto" />
+                <span v-else>{{ key }}</span>
+              </button>
+            </div>
+            <Button class="w-full mt-2" @click="numpadConfirm">
+              <Check class="h-4 w-4 mr-2" />
+              Set Amount
+            </Button>
+          </div>
+
+          <!-- Checkout button -->
+          <div class="px-4 py-3 flex gap-2">
+            <Button
+              variant="outline"
+              class="h-12"
+              :disabled="activeSlot.items.length === 0"
+              @click="clearActiveCart"
+            >
+              Clear
+            </Button>
+            <Button
+              class="flex-1 h-12 text-base font-bold"
+              :disabled="!canCheckout || saleLoading"
+              @click="showConfirmDialog = true"
+            >
+              <ShoppingCart class="h-5 w-5 mr-2" />
+              {{ saleLoading ? 'Processing...' : 'Pay Now' }}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Variant picker dialog ─────────────────────────────────────────── -->
+    <Dialog v-model:open="showVariantDialog">
+      <DialogContent class="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Choose a Variant</DialogTitle>
+          <DialogDescription>
+            {{ variantParentProduct?.name }} — pick the one you want to sell
+          </DialogDescription>
+        </DialogHeader>
+        <div class="flex flex-col gap-2 py-2">
+          <button
+            v-for="variant in variantOptions"
+            :key="variant.id"
+            class="flex items-center gap-4 rounded-lg border px-4 py-3 text-left hover:border-primary hover:bg-accent transition-colors"
+            :class="variant.quantity <= 0 ? 'opacity-40 pointer-events-none' : ''"
+            @click="handleVariantSelected(variant)"
+          >
+            <div class="size-12 rounded-md border bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+              <img
+                v-if="variant.image"
+                :src="variant.image"
+                :alt="variant.name"
+                class="size-full object-cover"
+              />
+              <ImageOff v-else class="size-5 text-muted-foreground/30" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold">{{ variant.variant_label || variant.name }}</p>
+              <p class="text-xs text-muted-foreground font-mono">{{ variant.sku }}</p>
+              <p class="text-sm font-bold text-primary mt-0.5">{{ formatCurrency(variant.price) }}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <Badge
+                :variant="variant.quantity <= 0 ? 'destructive' : variant.quantity <= variant.min_stock ? 'outline' : 'secondary'"
+                class="text-xs"
+              >
+                {{ variant.quantity <= 0 ? 'Out of Stock' : `${variant.quantity} left` }}
+              </Badge>
+              <ChevronRight class="h-4 w-4 text-muted-foreground mt-1 ml-auto" />
+            </div>
+          </button>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showVariantDialog = false">Cancel</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- ── Addon picker dialog ───────────────────────────────────────────── -->
+    <Dialog v-model:open="showAddonDialog">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Add Extras?</DialogTitle>
+          <DialogDescription>
+            Optional add-ons for {{ addonTargetProduct?.name }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="flex flex-col gap-2 py-2">
+          <div v-if="addonDialogLoading" class="py-6 text-center text-sm text-muted-foreground">
+            Loading add-ons...
+          </div>
+          <button
+            v-else
+            v-for="addon in productAddons"
+            :key="addon.id"
+            class="flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors"
+            :class="isAddonSelected(addon)
+              ? 'border-primary bg-primary/5'
+              : 'hover:border-primary/40 hover:bg-accent'"
+            @click="toggleAddonSelection(addon)"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="size-5 rounded border-2 flex items-center justify-center transition-colors"
+                :class="isAddonSelected(addon) ? 'border-primary bg-primary' : 'border-muted-foreground/40'"
+              >
+                <Check v-if="isAddonSelected(addon)" class="h-3 w-3 text-primary-foreground" />
+              </div>
+              <div>
+                <p class="text-sm font-medium">{{ addon.name }}</p>
+              </div>
+            </div>
+            <p class="text-sm font-bold text-primary">+ {{ formatCurrency(addon.price) }}</p>
+          </button>
+
+          <div
+            v-if="addonSelections.length > 0"
+            class="rounded-md bg-muted/50 px-3 py-2 text-sm flex items-center justify-between"
+          >
+            <span class="text-muted-foreground">Add-ons total</span>
+            <span class="font-semibold">
+              + {{ formatCurrency(addonSelections.reduce((sum, addon) => sum + addon.price, 0)) }}
+            </span>
+          </div>
+        </div>
+        <DialogFooter class="flex gap-2">
+          <Button variant="outline" @click="handleAddonConfirmed">
+            Skip
+          </Button>
+          <Button @click="handleAddonConfirmed">
+            <Puzzle class="h-4 w-4 mr-2" />
+            {{ addonSelections.length > 0 ? `Add with ${addonSelections.length} extra${addonSelections.length > 1 ? 's' : ''}` : 'Add to Cart' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- ── Checkout confirmation dialog ─────────────────────────────────── -->
     <AlertDialog v-model:open="showConfirmDialog">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Sale</AlertDialogTitle>
           <AlertDialogDescription>
-            <div class="space-y-2 mt-2">
-              <div class="flex justify-between">
-                <span>Total Amount:</span>
-                <span class="font-bold">{{ formatCurrency(total) }}</span>
+            <div class="flex flex-col gap-2 mt-1">
+              <div class="flex justify-between text-sm">
+                <span>Items</span>
+                <span class="font-medium">{{ totalItemCount }}</span>
               </div>
-              <div v-if="paymentType === 'cash'" class="flex justify-between">
-                <span>Amount Paid:</span>
-                <span class="font-bold">{{ formatCurrency(amountPaid) }}</span>
+              <div
+                v-for="line in activeSlot.paymentLines"
+                :key="line.method"
+                class="flex justify-between text-sm"
+              >
+                <span>{{ paymentMethodLabel(line.method) }}</span>
+                <span class="font-medium">{{ formatCurrency(line.amount) }}</span>
               </div>
-              <div v-if="paymentType === 'cash' && change > 0" class="flex justify-between text-green-600">
-                <span>Change:</span>
-                <span class="font-bold">{{ formatCurrency(change) }}</span>
+              <Separator />
+              <div class="flex justify-between font-bold">
+                <span>Total</span>
+                <span>{{ formatCurrency(cartTotal) }}</span>
               </div>
-              <div class="flex justify-between">
-                <span>Payment:</span>
-                <span class="font-medium capitalize">{{ paymentType }}</span>
+              <div v-if="changeAmount > 0" class="flex justify-between text-sm font-semibold">
+                <span>Change</span>
+                <span>{{ formatCurrency(changeAmount) }}</span>
               </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="processCheckout" :disabled="loading">
-            Confirm
+          <AlertDialogCancel>Back</AlertDialogCancel>
+          <AlertDialogAction @click="processCheckout" :disabled="saleLoading">
+            Confirm & Complete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
   </div>
 </template>
