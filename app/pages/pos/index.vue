@@ -598,6 +598,7 @@ const processCheckout = async () => {
     productId: item.productId,
     quantity: item.quantity,
     isWholesale: item.isWholesale,
+    unitPrice: getEffectiveUnitPrice(item),
   }))
 
   const primaryPaymentLine = activeSlot.value.paymentLines[0]!

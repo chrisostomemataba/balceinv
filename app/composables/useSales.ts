@@ -125,7 +125,7 @@ export const useSales = () => {
   };
 
   const createSale = async (data: {
-    items: Array<{ productId: number; quantity: number; isWholesale?: boolean }>;
+    items: Array<{ productId: number; quantity: number; isWholesale?: boolean; unitPrice?: number }>;
     paymentType: "cash" | "card" | "mobile";
     saleType?: "retail" | "wholesale";
     amountPaid?: number;
