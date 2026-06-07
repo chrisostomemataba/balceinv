@@ -60,8 +60,8 @@ const isResourceAllSelected = (perms: any[]) =>
 
 const toggleResource = (perms: any[]) => {
   if (isResourceAllSelected(perms)) {
-    const ids = perms.map((p) => p.id);
-    selectedPermissions.value = selectedPermissions.value.filter((id) => !ids.includes(id));
+    const ids = new Set(perms.map((p) => p.id));
+    selectedPermissions.value = selectedPermissions.value.filter((id) => !ids.has(id));
   } else {
     const toAdd = perms.map((p) => p.id).filter((id) => !selectedPermissions.value.includes(id));
     selectedPermissions.value = [...selectedPermissions.value, ...toAdd];
@@ -78,20 +78,24 @@ const togglePermission = (id: number) => {
   }
 };
 
+const { user } = useAuth();
+const { fetchUserPermissions } = usePermissions();
+
 onMounted(async () => {
+  if (user.value) await fetchUserPermissions(user.value.id);
   await fetchRoles();
   await fetchPermissions();
-  window.addEventListener('edit-role', handleEdit);
-  window.addEventListener('delete-role', handleDelete);
-  window.addEventListener('view-users', handleViewUsers);
-  window.addEventListener('manage-permissions', handleManagePermissions);
+  globalThis.addEventListener('edit-role', handleEdit);
+  globalThis.addEventListener('delete-role', handleDelete);
+  globalThis.addEventListener('view-users', handleViewUsers);
+  globalThis.addEventListener('manage-permissions', handleManagePermissions);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('edit-role', handleEdit);
-  window.removeEventListener('delete-role', handleDelete);
-  window.removeEventListener('view-users', handleViewUsers);
-  window.removeEventListener('manage-permissions', handleManagePermissions);
+  globalThis.removeEventListener('edit-role', handleEdit);
+  globalThis.removeEventListener('delete-role', handleDelete);
+  globalThis.removeEventListener('view-users', handleViewUsers);
+  globalThis.removeEventListener('manage-permissions', handleManagePermissions);
 });
 
 const handleEdit = (event: any) => {

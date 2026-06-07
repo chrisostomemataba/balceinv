@@ -5,7 +5,6 @@ import {
   Package,
   Users,
   Shield,
-  BarChart3,
   Bell,
   Settings,
   TrendingUp,
