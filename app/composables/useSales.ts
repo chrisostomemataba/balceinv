@@ -153,7 +153,7 @@ export const useSales = () => {
     loading.value = true;
     try {
       const query = new URLSearchParams();
-      if (date) query.append("date", date.toISOString().split("T")[0]!);
+      if (date) query.append("date", date.toISOString().split("T")[0]);
       const qs = query.toString();
       const url = qs ? `${apiBase}/api/sales/daily?${qs}` : `${apiBase}/api/sales/daily`;
 
@@ -192,8 +192,8 @@ export const useSales = () => {
     loading.value = true;
     try {
       const query = new URLSearchParams({
-        startDate: startDate.toISOString().split("T")[0]!,
-        endDate: endDate.toISOString().split("T")[0]!,
+        startDate: startDate.toISOString().split("T")[0],
+        endDate: endDate.toISOString().split("T")[0],
       });
 
       const res = await $apiFetch<ApiResponse<Sale[]>>(
@@ -241,10 +241,8 @@ export const useSales = () => {
 
   const exportSales = (startDate?: Date, endDate?: Date): void => {
     const query = new URLSearchParams();
-    if (startDate) query.append("startDate", startDate.toISOString().split("T")[0]!);
-    if (endDate) query.append("endDate", endDate.toISOString().split("T")[0]!);
-    const qs = query.toString();
-    window.open(qs ? `${apiBase}/api/sales/export?${qs}` : `${apiBase}/api/sales/export`, "_blank");
+      if (startDate) query.append("startDate", startDate.toISOString().split("T")[0]);
+      if (endDate) query.append("endDate", endDate.toISOString().split("T")[0]);
   };
 
   return {

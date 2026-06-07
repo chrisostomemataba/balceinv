@@ -107,11 +107,38 @@ const createEmptySlot = (): CartSlot => ({
   note: '',
 })
 
-const cartSlots = ref<CartSlot[]>(
-  Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
-)
-const activeSlotIndex = ref(0)
-const visibleSlotCount = ref(1)
+const loadPersistedCart = (): { slots: CartSlot[]; activeIndex: number; visibleCount: number } => {
+  if (!import.meta.client) {
+    return {
+      slots: Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
+      activeIndex: 0,
+      visibleCount: 1,
+    }
+  }
+
+  try {
+    const raw = localStorage.getItem('pos-cart-state')
+    if (!raw) throw new Error('empty')
+    const parsed = JSON.parse(raw)
+    return {
+      slots: parsed.slots ?? Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
+      activeIndex: parsed.activeIndex ?? 0,
+      visibleCount: parsed.visibleCount ?? 1,
+    }
+  } catch {
+    return {
+      slots: Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
+      activeIndex: 0,
+      visibleCount: 1,
+    }
+  }
+}
+
+const persistedCart = loadPersistedCart()
+
+const cartSlots = ref<CartSlot[]>(persistedCart.slots)
+const activeSlotIndex = ref(persistedCart.activeIndex)
+const visibleSlotCount = ref(persistedCart.visibleCount)
 const activeSlot = computed(() => cartSlots.value[activeSlotIndex.value]!)
 
 // A slot tab is visible if it is within the visible count OR it has items
@@ -244,6 +271,22 @@ const loadSettings = () => {
     customerDisplayEnabled.value = localStorage.getItem('pos-customer-display') === 'true'
   }
 }
+
+const persistCart = () => {
+  if (!import.meta.client) return
+  localStorage.setItem(
+    'pos-cart-state',
+    JSON.stringify({
+      slots: cartSlots.value,
+      activeIndex: activeSlotIndex.value,
+      visibleCount: visibleSlotCount.value,
+    }),
+  )
+}
+
+watch(cartSlots, persistCart, { deep: true })
+watch(activeSlotIndex, persistCart)
+watch(visibleSlotCount, persistCart)
 
 // ── Customer display sync ─────────────────────────────────────────────────
 
