@@ -235,8 +235,11 @@ const topProductsOptions = {
     }
   }
 };
+const { user } = useAuth();
+const { fetchUserPermissions } = usePermissions();
 
 onMounted(async () => {
+  if (user.value) await fetchUserPermissions(user.value.id);
   await loadAllReports();
 });
 
