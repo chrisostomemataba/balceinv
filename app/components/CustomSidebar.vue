@@ -9,7 +9,8 @@ import {
   Bell,
   Settings,
   TrendingUp,
-  FileText
+  FileText,
+  BadgePercent
 } from 'lucide-vue-next';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -45,10 +46,10 @@ const navigationItems = computed(() => {
     { path: '/sales', icon: ShoppingCart, label: 'Sales History', resource: 'sales' },
     { path: '/products', icon: Package, label: 'Products', resource: 'products' },
     { path: '/stock-movements', icon: TrendingUp, label: 'Stock Movements', resource: 'stock_movements' },
+    { path: '/discounts', icon: BadgePercent, label: 'Discounts', resource: 'discounts' },
   ];
 
   const management: NavigationItem[] = [
-    { path: '/reports', icon: BarChart3, label: 'Reports', resource: 'reports' },
     { path: '/notifications', icon: Bell, label: 'Notifications', resource: 'notifications' },
   ];
 

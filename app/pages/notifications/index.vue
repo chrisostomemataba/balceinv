@@ -30,6 +30,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/composables/useNotifications';
 
+
+const { user } = useAuth()
+const { fetchUserPermissions } = usePermissions()
 const {
   notifications,
   notificationCount,
@@ -138,9 +141,10 @@ const clearAutoRefresh = () => {
 };
 
 onMounted(async () => {
-  loadSoundSetting();
-  await fetchNotifications();
-  setupAutoRefresh();
+  if (user.value) await fetchUserPermissions(user.value.id)
+  loadSoundSetting()
+  await fetchNotifications()
+  setupAutoRefresh()
 });
 
 onUnmounted(() => {

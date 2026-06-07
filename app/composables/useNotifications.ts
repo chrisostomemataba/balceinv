@@ -23,35 +23,37 @@ export const useNotifications = () => {
   const notificationCount = ref(0);
   const loading = ref(false);
   const soundEnabled = ref(true);
+  const isClient = globalThis !== undefined && (globalThis as any).window !== undefined;
 
   let audioContext: AudioContext | null = null;
 
   const initAudio = () => {
-    if (process.client && !audioContext) {
-      audioContext = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
+    if (isClient && !audioContext) {
+      const g = globalThis as any;
+      const Ctx = g.window?.AudioContext || g.window?.webkitAudioContext || g.AudioContext || g.webkitAudioContext;
+      if (Ctx) audioContext = new Ctx();
     }
   };
 
   // Two quick beeps — first at 800Hz then at 1000Hz — so the cashier knows
   // something happened without it being intrusive or alarming.
   const playNotificationSound = () => {
-    if (!soundEnabled.value || !process.client) return;
+    if (!soundEnabled.value || !isClient) return;
     try {
       initAudio();
       if (!audioContext) return;
 
       const beep = (freq: number, start: number, duration: number) => {
-        const osc = audioContext!.createOscillator();
-        const gain = audioContext!.createGain();
+        if (!audioContext) return;
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
         osc.connect(gain);
-        gain.connect(audioContext!.destination);
+        gain.connect(audioContext.destination);
         osc.frequency.value = freq;
         osc.type = "sine";
         gain.gain.value = 0.3;
-        osc.start(audioContext!.currentTime + start);
-        osc.stop(audioContext!.currentTime + start + duration);
+        osc.start(audioContext.currentTime + start);
+        osc.stop(audioContext.currentTime + start + duration);
       };
 
       beep(800, 0, 0.2);
@@ -185,7 +187,7 @@ export const useNotifications = () => {
 
   const toggleSound = (): void => {
     soundEnabled.value = !soundEnabled.value;
-    if (process.client) {
+    if (isClient) {
       localStorage.setItem(
         "notification-sound-enabled",
         soundEnabled.value.toString(),
@@ -194,7 +196,7 @@ export const useNotifications = () => {
   };
 
   const loadSoundSetting = (): void => {
-    if (process.client) {
+    if (isClient) {
       const saved = localStorage.getItem("notification-sound-enabled");
       if (saved !== null) soundEnabled.value = saved === "true";
     }

@@ -53,19 +53,22 @@ const formData = ref({
 
 const newPassword = ref('');
 
+const { user } = useAuth()
+const { fetchUserPermissions } = usePermissions()
 onMounted(async () => {
+  if (user.value) await fetchUserPermissions(user.value.id)
   await fetchUsers();
   await fetchRoles();
   
-  window.addEventListener('edit-user', handleEdit);
-  window.addEventListener('update-password', handleUpdatePassword);
-  window.addEventListener('delete-user', handleDelete);
+  globalThis.addEventListener('edit-user', handleEdit);
+  globalThis.addEventListener('update-password', handleUpdatePassword);
+  globalThis.addEventListener('delete-user', handleDelete);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('edit-user', handleEdit);
-  window.removeEventListener('update-password', handleUpdatePassword);
-  window.removeEventListener('delete-user', handleDelete);
+  globalThis.removeEventListener('edit-user', handleEdit);
+  globalThis.removeEventListener('update-password', handleUpdatePassword);
+  globalThis.removeEventListener('delete-user', handleDelete);
 });
 
 const handleEdit = (event: any) => {

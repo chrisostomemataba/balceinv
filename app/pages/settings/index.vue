@@ -154,8 +154,10 @@ const loadForms = () => {
   // Show current logo if one was already uploaded
   if (c.logo) logoPreview.value = c.logo
 }
-
+const { user } = useAuth()
+const { fetchUserPermissions } = usePermissions()
 onMounted(async () => {
+  if (user.value) await fetchUserPermissions(user.value.id)
   await fetchSettings()
   loadForms()
 })
@@ -325,43 +327,43 @@ const efdBadgeLabel = computed(() => {
           <CardContent class="flex flex-col gap-4">
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-1.5">
-                <Label>Business Name</Label>
-                <Input v-model="businessForm.business_name" placeholder="Acme Ltd." />
+                <Label for="business-name">Business Name</Label>
+                <Input id="business-name" v-model="businessForm.business_name" placeholder="Acme Ltd." />
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label>Phone Number</Label>
+                <Label for="business-phone">Phone Number</Label>
                 <div class="relative">
                   <Phone class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input v-model="businessForm.business_phone" class="pl-9" placeholder="+255 XXX XXX XXX" />
+                  <Input id="business-phone" v-model="businessForm.business_phone" class="pl-9" placeholder="+255 XXX XXX XXX" />
                 </div>
               </div>
             </div>
 
             <div class="flex flex-col gap-1.5 max-w-xs">
-              <Label>TIN Number</Label>
+              <Label for="business-tin">TIN Number</Label>
               <div class="relative">
                 <Hash class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input v-model="businessForm.business_tin" class="pl-9" placeholder="123-456-789" />
+                <Input id="business-tin" v-model="businessForm.business_tin" class="pl-9" placeholder="123-456-789" />
               </div>
             </div>
 
             <div class="flex flex-col gap-1.5">
-              <Label>Address</Label>
+              <Label for="business-address">Address</Label>
               <div class="relative">
                 <MapPin class="absolute left-3 top-3 size-4 text-muted-foreground" />
-                <Textarea v-model="businessForm.business_address" class="pl-9 min-h-20 resize-none" placeholder="Street, City, Region" />
+                <Textarea id="business-address" v-model="businessForm.business_address" class="pl-9 min-h-20 resize-none" placeholder="Street, City, Region" />
               </div>
             </div>
 
             <Separator />
 
             <div class="flex flex-col gap-1.5">
-              <Label>Receipt Header</Label>
-              <Textarea v-model="businessForm.receipt_header" class="min-h-16 resize-none" placeholder="e.g. Thank you for shopping with us!" />
+              <Label for="receipt-header">Receipt Header</Label>
+              <Textarea id="receipt-header" v-model="businessForm.receipt_header" class="min-h-16 resize-none" placeholder="e.g. Thank you for shopping with us!" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label>Receipt Footer</Label>
-              <Textarea v-model="businessForm.receipt_footer" class="min-h-16 resize-none" placeholder="e.g. Goods sold are not returnable." />
+              <Label for="receipt-footer">Receipt Footer</Label>
+              <Textarea id="receipt-footer" v-model="businessForm.receipt_footer" class="min-h-16 resize-none" placeholder="e.g. Goods sold are not returnable." />
             </div>
 
             <div class="flex justify-end pt-1">
@@ -386,7 +388,7 @@ const efdBadgeLabel = computed(() => {
           <CardContent class="flex flex-col gap-4">
             <div class="grid grid-cols-3 gap-4">
               <div class="flex flex-col gap-1.5">
-                <Label>Currency Code</Label>
+                <Label for="currency-code">Currency Code</Label>
                 <Select v-model="systemForm.currency">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -398,12 +400,12 @@ const efdBadgeLabel = computed(() => {
                 </Select>
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label>Currency Symbol</Label>
-                <Input v-model="systemForm.currency_symbol" placeholder="TZS" />
+                <Label for="currency-symbol">Currency Symbol</Label>
+                <Input id="currency-symbol" v-model="systemForm.currency_symbol" placeholder="TZS" />
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label>Tax Rate (%)</Label>
-                <Input v-model.number="systemForm.tax_rate" type="number" min="0" max="100" />
+                <Label for="tax-rate">Tax Rate (%)</Label>
+                <Input id="tax-rate" v-model.number="systemForm.tax_rate" type="number" min="0" max="100" />
               </div>
             </div>
           </CardContent>
@@ -417,7 +419,7 @@ const efdBadgeLabel = computed(() => {
           <CardContent class="flex flex-col gap-4">
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-1.5">
-                <Label>Date Format</Label>
+                <Label for="date-format">Date Format</Label>
                 <Select v-model="systemForm.date_format">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -428,8 +430,8 @@ const efdBadgeLabel = computed(() => {
                 </Select>
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label>Receipt Number Format</Label>
-                <Input v-model="systemForm.receipt_number_format" placeholder="SALE-{DATE}-{COUNTER}" />
+                <Label for="receipt-number-format">Receipt Number Format</Label>
+                <Input id="receipt-number-format" v-model="systemForm.receipt_number_format" placeholder="SALE-{DATE}-{COUNTER}" />
                 <p class="text-xs text-muted-foreground">Tokens: <code class="text-xs">{DATE}</code> · <code class="text-xs">{COUNTER}</code></p>
               </div>
             </div>
@@ -479,7 +481,7 @@ const efdBadgeLabel = computed(() => {
           <CardContent v-if="hardwareForm.printerEnabled" class="flex flex-col gap-4">
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-1.5">
-                <Label>Connection Type</Label>
+                <Label for="connection-type">Connection Type</Label>
                 <Select v-model="hardwareForm.printerPort">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -491,8 +493,8 @@ const efdBadgeLabel = computed(() => {
                 </Select>
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label>Printer Model <span class="text-muted-foreground text-xs">(optional)</span></Label>
-                <Input v-model="hardwareForm.printerModel" placeholder="e.g. Epson TM-T20III" />
+                <Label for="printer-model">Printer Model <span class="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input id="printer-model" v-model="hardwareForm.printerModel" placeholder="e.g. Epson TM-T20III" />
               </div>
             </div>
 
@@ -552,12 +554,12 @@ const efdBadgeLabel = computed(() => {
           </CardHeader>
           <CardContent v-if="efdForm.efd_enabled" class="flex flex-col gap-4">
             <div class="flex flex-col gap-1.5">
-              <Label>EFD Endpoint URL</Label>
-              <Input v-model="efdForm.efd_endpoint" placeholder="https://efd.tra.go.tz/api/v1" />
+              <Label for="efd-endpoint">EFD Endpoint URL</Label>
+              <Input id="efd-endpoint" v-model="efdForm.efd_endpoint" placeholder="https://efd.tra.go.tz/api/v1" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label>API Key</Label>
-              <Input v-model="efdForm.efd_api_key" type="password" placeholder="••••••••••••••••" />
+              <Label for="efd-api-key">API Key</Label>
+              <Input id="efd-api-key" v-model="efdForm.efd_api_key" type="password" placeholder="••••••••••••••••" />
             </div>
             <p v-if="settings?.efd_last_test_date" class="text-xs text-muted-foreground">
               Last tested: {{ new Date(settings.efd_last_test_date).toLocaleString() }}
@@ -617,8 +619,8 @@ const efdBadgeLabel = computed(() => {
               <Switch v-model:checked="notificationForm.alert_on_low_stock" />
             </div>
             <div v-if="notificationForm.alert_on_low_stock" class="flex flex-col gap-1.5 max-w-xs">
-              <Label>Low Stock Threshold (units)</Label>
-              <Input v-model.number="notificationForm.low_stock_threshold" type="number" min="1" />
+              <Label for="low-stock-threshold">Low Stock Threshold (units)</Label>
+              <Input id="low-stock-threshold" v-model.number="notificationForm.low_stock_threshold" type="number" min="1" />
             </div>
 
             <Separator />
@@ -641,8 +643,8 @@ const efdBadgeLabel = computed(() => {
               <Switch v-model:checked="notificationForm.alert_on_dead_stock" />
             </div>
             <div v-if="notificationForm.alert_on_dead_stock" class="flex flex-col gap-1.5 max-w-xs">
-              <Label>Dead Stock Period (days)</Label>
-              <Input v-model.number="notificationForm.dead_stock_days" type="number" min="1" />
+              <Label for="dead-stock-period">Dead Stock Period (days)</Label>
+              <Input id="dead-stock-period" v-model.number="notificationForm.dead_stock_days" type="number" min="1" />
             </div>
           </CardContent>
         </Card>
@@ -659,10 +661,10 @@ const efdBadgeLabel = computed(() => {
           </CardHeader>
           <CardContent v-if="notificationForm.email_notifications_enabled">
             <div class="flex flex-col gap-1.5 max-w-sm">
-              <Label>Notification Email</Label>
+              <Label for="notification-email">Notification Email</Label>
               <div class="relative">
                 <Mail class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input v-model="notificationForm.notification_email" type="email" class="pl-9" placeholder="you@example.com" />
+                <Input id="notification-email" v-model="notificationForm.notification_email" type="email" class="pl-9" placeholder="you@example.com" />
               </div>
             </div>
           </CardContent>
