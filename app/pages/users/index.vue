@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, UserPlus } from 'lucide-vue-next';
+import { UserPlus } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { columns } from '@/components/users/columns';
 import DataTable from '@/components/users/DataTable.vue';

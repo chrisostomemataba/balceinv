@@ -82,9 +82,17 @@ const formData = ref({
   is_active: true,
 })
 
+const { user } = useAuth();
+const { fetchUserPermissions } = usePermissions();
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 onMounted(async () => {
-  await Promise.all([fetchDiscounts(), fetchProducts()])
+if (user.value) {
+    await fetchUserPermissions(user.value.id)
+    await Promise.all([fetchDiscounts(), fetchProducts()])
+  } else {
+    await Promise.all([fetchDiscounts(), fetchProducts()])
+  }
 })
 
 // ── Formatting helpers ────────────────────────────────────────────────────
@@ -293,41 +301,6 @@ const getProductName = (productId: number | null): string => {
       </Button>
     </div>
 
-    <!-- Stats -->
-    <div class="grid gap-4 md:grid-cols-3">
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between pb-2">
-          <CardTitle class="text-sm font-medium">Total Offers</CardTitle>
-          <Tag class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton v-if="loading" class="h-8 w-16" />
-          <div v-else class="text-2xl font-bold">{{ discounts.length }}</div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between pb-2">
-          <CardTitle class="text-sm font-medium">Currently Active</CardTitle>
-          <CheckCircle class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton v-if="loading" class="h-8 w-16" />
-          <div v-else class="text-2xl font-bold">{{ activeCount }}</div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between pb-2">
-          <CardTitle class="text-sm font-medium">Upcoming</CardTitle>
-          <CalendarClock class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton v-if="loading" class="h-8 w-16" />
-          <div v-else class="text-2xl font-bold">{{ scheduledCount }}</div>
-        </CardContent>
-      </Card>
-    </div>
 
     <!-- Discounts list -->
     <Card>
