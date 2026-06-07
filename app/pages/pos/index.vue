@@ -111,7 +111,16 @@ const cartSlots = ref<CartSlot[]>(
   Array.from({ length: SLOT_COUNT }, () => createEmptySlot()),
 )
 const activeSlotIndex = ref(0)
+const visibleSlotCount = ref(1)
 const activeSlot = computed(() => cartSlots.value[activeSlotIndex.value]!)
+
+// A slot tab is visible if it is within the visible count OR it has items
+// (safety net — ensures a paused slot is never hidden)
+const visibleSlots = computed(() =>
+  cartSlots.value
+    .map((slot, index) => ({ slot, index }))
+    .filter(({ index }) => index < visibleSlotCount.value),
+)
 
 // ── Sale success state ────────────────────────────────────────────────────
 
@@ -158,7 +167,7 @@ const customerDisplayEnabled = ref(false)
 
 const filteredProducts = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
-  if (!query) return products.value.slice(0, 20)
+  if (!query) return []
   return products.value
     .filter(
       product =>
@@ -465,6 +474,32 @@ const removeItem = (item: CartItem) => {
 const clearActiveCart = () => {
   cartSlots.value[activeSlotIndex.value] = createEmptySlot()
   showingSuccess.value = false
+
+  // If we cleared a slot that was not the first, collapse the tab bar
+  // back so empty slots do not linger as visible tabs
+  if (activeSlotIndex.value > 0) {
+    activeSlotIndex.value = activeSlotIndex.value - 1
+    visibleSlotCount.value = Math.max(1, visibleSlotCount.value - 1)
+  }
+}
+
+// pauseCart — saves the current cart and opens the next available slot.
+// The tab for the paused cart stays visible so the cashier can return to it.
+const pauseCart = () => {
+  if (activeSlot.value.items.length === 0) {
+    toast.error('Nothing in cart to pause')
+    return
+  }
+  if (visibleSlotCount.value >= SLOT_COUNT) {
+    toast.error('All 3 carts are in use — complete or clear one first')
+    return
+  }
+
+  const nextIndex = visibleSlotCount.value
+  visibleSlotCount.value++
+  activeSlotIndex.value = nextIndex
+  showingSuccess.value = false
+  toast.success(`Cart ${activeSlotIndex.value} paused — now on Cart ${nextIndex + 1}`)
 }
 
 // ── Payment lines ─────────────────────────────────────────────────────────
@@ -668,7 +703,7 @@ const paymentMethodIcon = (method: string) => {
     <!-- ── Cart slot tabs ───────────────────────────────────────────────── -->
     <div class="flex items-center gap-1 px-4 py-2 border-b shrink-0 bg-muted/30">
       <button
-        v-for="(slot, index) in cartSlots"
+        v-for="{ slot, index } in visibleSlots"
         :key="index"
         class="flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors"
         :class="activeSlotIndex === index
@@ -771,12 +806,23 @@ const paymentMethodIcon = (method: string) => {
               </div>
             </button>
 
+            <!-- No query yet — prompt the cashier -->
             <div
-              v-if="filteredProducts.length === 0"
+              v-if="!searchQuery.trim() && filteredProducts.length === 0"
+              class="col-span-full py-16 text-center text-muted-foreground"
+            >
+              <Barcode class="size-10 mx-auto mb-3 opacity-25" />
+              <p class="text-sm font-medium">Scan a barcode or search by name</p>
+              <p class="text-xs mt-1 opacity-60">Products will appear here</p>
+            </div>
+
+            <!-- Query with no match -->
+            <div
+              v-else-if="searchQuery.trim() && filteredProducts.length === 0"
               class="col-span-full py-16 text-center text-muted-foreground"
             >
               <Search class="size-10 mx-auto mb-3 opacity-30" />
-              <p class="text-sm">No products found</p>
+              <p class="text-sm">No products found for "{{ searchQuery }}"</p>
             </div>
           </div>
         </ScrollArea>
@@ -1069,10 +1115,11 @@ const paymentMethodIcon = (method: string) => {
             <Button
               variant="outline"
               class="h-12"
-              :disabled="activeSlot.items.length === 0"
-              @click="clearActiveCart"
+              :disabled="activeSlot.items.length === 0 || visibleSlotCount >= SLOT_COUNT"
+              @click="pauseCart"
+              :title="visibleSlotCount >= SLOT_COUNT ? 'All carts in use' : 'Pause and serve next customer'"
             >
-              Clear
+              Pause
             </Button>
             <Button
               class="flex-1 h-12 text-base font-bold"
