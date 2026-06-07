@@ -16,7 +16,7 @@ export const useAuth = () => {
   const userPermissions = useState<any[]>('perms:user', () => [])
   const isLoading = ref(false)
 
-  if (process.client && !user.value) {
+  if (typeof globalThis !== 'undefined' && !user.value) {
     const stored = localStorage.getItem('user')
     if (stored) {
       try { user.value = JSON.parse(stored) }
@@ -34,7 +34,7 @@ export const useAuth = () => {
 
       if (res.success && res.data?.user) {
         user.value = res.data.user
-        if (process.client) localStorage.setItem('user', JSON.stringify(res.data.user))
+        if (typeof globalThis !== 'undefined') localStorage.setItem('user', JSON.stringify(res.data.user))
 
         try {
           const permRes = await $fetch<{ success: boolean; data: any[] }>(
@@ -63,7 +63,7 @@ export const useAuth = () => {
     finally {
       user.value = null
       userPermissions.value = []
-      if (process.client) localStorage.removeItem('user')
+      if (typeof globalThis !== 'undefined') localStorage.removeItem('user')
       isLoading.value = false
       toast.success('Signed out successfully')
       await navigateTo('/login')
